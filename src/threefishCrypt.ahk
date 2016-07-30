@@ -1,6 +1,7 @@
 ; main encrypt/decrypt functions
 
 threefishEncrypt256(keyC,data){
+
     b0 := data[0], b1 := data[1]
     b2 := data[2], b3 := data[3]
 
@@ -168,10 +169,12 @@ threefishEncrypt256(keyC,data){
     output[1] := b1 + k4 + t0
     output[2] := b2 + k0 + t1
     output[3] := b3 + k1 + 18
+    
     return output
-  }
+}
 
 threefishDecrypt256(keyC,data){
+
     b0 := data[0], b1 := data[1]
     b2 := data[2], b3 := data[3]
 
@@ -343,9 +346,12 @@ threefishDecrypt256(keyC,data){
     output[1] := b1
     output[2] := b2
     output[3] := b3
+
+    return output
 }
   
 threefishEncrypt512(keyC,data){
+
     b0 := data[0], b1 := data[1]
     b2 := data[2], b3 := data[3]
     b4 := data[4], b5 := data[5]
@@ -657,10 +663,12 @@ threefishEncrypt512(keyC,data){
     output[5] := b5 + k5 + t0
     output[6] := b6 + k6 + t1
     output[7] := b7 + k7 + 18
+
     return output
 }
 
 threefishDecrypt512(keyC,data){
+
     b0 := data[0], b1 := data[1]
     b2 := data[2], b3 := data[3]
     b4 := data[4], b5 := data[5]
@@ -978,10 +986,12 @@ threefishDecrypt512(keyC,data){
     output[6] := b6
     output[5] := b5
     output[4] := b4
+
     return output
 }
 
 threefishEncrypt1024(keyC,data){
+
     b0 := data[0], b1 := data[1]
     b2 := data[2], b3 := data[3]
     b4 := data[4], b5 := data[5]
@@ -1661,10 +1671,12 @@ threefishEncrypt1024(keyC,data){
     output[13] := b13 + k16 + t2
     output[14] := b14 + k0 + t0
     output[15] := b15 + k1 + 20
+
     return output
 }
 
 threefishDecryption1024(keyC,data){
+
     b0 := data[0], b1 := data[1]
     b2 := data[2], b3 := data[3]
     b4 := data[4], b5 := data[5]
