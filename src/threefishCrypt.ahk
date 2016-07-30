@@ -1,3 +1,43 @@
+; ThreefishKey class (written by Capn Odin)
+
+class ThreefishKey_t
+{
+	stateSize := 0
+	key := Object()
+	tweak := [0, 0, 0]
+	
+	KeyScheduleConst := 0x1BD11BDAA9FC1A22L
+	SKEIN_MAX_STATE_WORDS := 16
+
+	__New(stateSize := 0, key := False, tweak := False){
+		this.stateSize := stateSize
+		this.key := key ? key : this.key
+		if(!key){
+			loop % this.SKEIN_MAX_STATE_WORDS + 1 {
+				this.key.Push(0)
+			}
+		}
+		this.tweak := tweak ? tweak : this.tweak
+	}
+	
+	threefishSetKey(stateSize, keyData, tweak){
+		keyWords := stateSize / 64
+		parity := this.KeyScheduleConst
+		
+		this.tweak[1] := tweak[1]
+		this.tweak[2] := tweak[2]
+		this.tweak[3] := tweak[1] ^ tweak[2]
+		
+		loop %keyWords% {
+			this.key[A_Index] := keyData[A_Index]
+			parity ^= keyData[A_Index]
+			i := A_Index
+		}
+		this.key[i] := parity
+		this.stateSize := stateSize
+	}
+}
+
 ; main encrypt/decrypt functions
 
 threefishEncrypt256(keyC,data){
@@ -5,12 +45,12 @@ threefishEncrypt256(keyC,data){
     b0 := data[0], b1 := data[1]
     b2 := data[2], b3 := data[3]
 
-    k0 := keyC->key[0], k1 := keyC->key[1]
-    k2 := keyC->key[2], k3 := keyC->key[3]
-    k4 := keyC->key[4]
+    k0 := keyC.key[0], k1 := keyC.key[1]
+    k2 := keyC.key[2], k3 := keyC.key[3]
+    k4 := keyC.key[4]
 
-    t0 := keyC->tweak[0], t1 := keyC->tweak[1]
-    t2 := keyC->tweak[2]
+    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
+    t2 := keyC.tweak[2]
 
     b1 += k1 + t0, b0 += b1 + k0, b1 := ((b1 << 14) | (b1 >> (64 - 14))) ^ b0
     b3 += k3, b2 += b3 + k2 + t1, b3 := ((b3 << 16) | (b3 >> (64 - 16))) ^ b2
@@ -165,6 +205,7 @@ threefishEncrypt256(keyC,data){
     b0 += b3, b3 := ((b3 << 32) | (b3 >> (64 - 32))) ^ b0
     b2 += b1, b1 := ((b1 << 32) | (b1 >> (64 - 32))) ^ b2
 
+    output:=[]
     output[0] := b0 + k3
     output[1] := b1 + k4 + t0
     output[2] := b2 + k0 + t1
@@ -178,170 +219,171 @@ threefishDecrypt256(keyC,data){
     b0 := data[0], b1 := data[1]
     b2 := data[2], b3 := data[3]
 
-    k0 := keyC->key[0], k1 := keyC->key[1]
-    k2 := keyC->key[2], k3 := keyC->key[3]
-    k4 := keyC->key[4]
+    k0 := keyC.key[0], k1 := keyC.key[1]
+    k2 := keyC.key[2], k3 := keyC.key[3]
+    k4 := keyC.key[4]
 
-    t0 := keyC->tweak[0], t1 := keyC->tweak[1]
-    t2 := keyC->tweak[2]
+    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
+    t2 := keyC.tweak[2]
 
     b0 -= k3
     b1 -= k4 + t0
     b2 -= k0 + t1
     b3 -= k1 + 18
-    tmp := b3 ^ b0, b3 := (tmp >> 32) | (tmp << (64 - 32)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 32) | (tmp << (64 - 32)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 58) | (tmp << (64 - 58)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 22) | (tmp << (64 - 22)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 12) | (tmp << (64 - 12)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 25) | (tmp << (64 - 25)), b0 -= b1 + k2, b1 -= k3 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b3 + k4 + t0, b3 -= k0 + 17
-    tmp := b3 ^ b0, b3 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 37) | (tmp << (64 - 37)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 23) | (tmp << (64 - 23)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 40) | (tmp << (64 - 40)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 52) | (tmp << (64 - 52)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 57) | (tmp << (64 - 57)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 14) | (tmp << (64 - 14)), b0 -= b1 + k1, b1 -= k2 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 16) | (tmp << (64 - 16)), b2 -= b3 + k3 + t2, b3 -= k4 + 16
+    tp := b3 ^ b0, b3 := (tp >> 32) | (tp << (64 - 32)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 32) | (tp << (64 - 32)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 58) | (tp << (64 - 58)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 22) | (tp << (64 - 22)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 46) | (tp << (64 - 46)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 12) | (tp << (64 - 12)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 25) | (tp << (64 - 25)), b0 -= b1 + k2, b1 -= k3 + t2
+    tp := b3 ^ b2, b3 := (tp >> 33) | (tp << (64 - 33)), b2 -= b3 + k4 + t0, b3 -= k0 + 17
+    tp := b3 ^ b0, b3 := (tp >> 5) | (tp << (64 - 5)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 37) | (tp << (64 - 37)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 23) | (tp << (64 - 23)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 40) | (tp << (64 - 40)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 52) | (tp << (64 - 52)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 57) | (tp << (64 - 57)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 14) | (tp << (64 - 14)), b0 -= b1 + k1, b1 -= k2 + t1
+    tp := b3 ^ b2, b3 := (tp >> 16) | (tp << (64 - 16)), b2 -= b3 + k3 + t2, b3 -= k4 + 16
 
-    tmp := b3 ^ b0, b3 := (tmp >> 32) | (tmp << (64 - 32)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 32) | (tmp << (64 - 32)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 58) | (tmp << (64 - 58)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 22) | (tmp << (64 - 22)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 12) | (tmp << (64 - 12)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 25) | (tmp << (64 - 25)), b0 -= b1 + k0, b1 -= k1 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b3 + k2 + t1, b3 -= k3 + 15
-    tmp := b3 ^ b0, b3 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 37) | (tmp << (64 - 37)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 23) | (tmp << (64 - 23)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 40) | (tmp << (64 - 40)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 52) | (tmp << (64 - 52)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 57) | (tmp << (64 - 57)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 14) | (tmp << (64 - 14)), b0 -= b1 + k4, b1 -= k0 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 16) | (tmp << (64 - 16)), b2 -= b3 + k1 + t0, b3 -= k2 + 14
+    tp := b3 ^ b0, b3 := (tp >> 32) | (tp << (64 - 32)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 32) | (tp << (64 - 32)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 58) | (tp << (64 - 58)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 22) | (tp << (64 - 22)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 46) | (tp << (64 - 46)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 12) | (tp << (64 - 12)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 25) | (tp << (64 - 25)), b0 -= b1 + k0, b1 -= k1 + t0
+    tp := b3 ^ b2, b3 := (tp >> 33) | (tp << (64 - 33)), b2 -= b3 + k2 + t1, b3 -= k3 + 15
+    tp := b3 ^ b0, b3 := (tp >> 5) | (tp << (64 - 5)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 37) | (tp << (64 - 37)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 23) | (tp << (64 - 23)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 40) | (tp << (64 - 40)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 52) | (tp << (64 - 52)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 57) | (tp << (64 - 57)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 14) | (tp << (64 - 14)), b0 -= b1 + k4, b1 -= k0 + t2
+    tp := b3 ^ b2, b3 := (tp >> 16) | (tp << (64 - 16)), b2 -= b3 + k1 + t0, b3 -= k2 + 14
 
-    tmp := b3 ^ b0, b3 := (tmp >> 32) | (tmp << (64 - 32)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 32) | (tmp << (64 - 32)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 58) | (tmp << (64 - 58)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 22) | (tmp << (64 - 22)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 12) | (tmp << (64 - 12)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 25) | (tmp << (64 - 25)), b0 -= b1 + k3, b1 -= k4 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b3 + k0 + t2, b3 -= k1 + 13
-    tmp := b3 ^ b0, b3 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 37) | (tmp << (64 - 37)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 23) | (tmp << (64 - 23)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 40) | (tmp << (64 - 40)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 52) | (tmp << (64 - 52)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 57) | (tmp << (64 - 57)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 14) | (tmp << (64 - 14)), b0 -= b1 + k2, b1 -= k3 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 16) | (tmp << (64 - 16)), b2 -= b3 + k4 + t1, b3 -= k0 + 12
+    tp := b3 ^ b0, b3 := (tp >> 32) | (tp << (64 - 32)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 32) | (tp << (64 - 32)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 58) | (tp << (64 - 58)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 22) | (tp << (64 - 22)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 46) | (tp << (64 - 46)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 12) | (tp << (64 - 12)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 25) | (tp << (64 - 25)), b0 -= b1 + k3, b1 -= k4 + t1
+    tp := b3 ^ b2, b3 := (tp >> 33) | (tp << (64 - 33)), b2 -= b3 + k0 + t2, b3 -= k1 + 13
+    tp := b3 ^ b0, b3 := (tp >> 5) | (tp << (64 - 5)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 37) | (tp << (64 - 37)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 23) | (tp << (64 - 23)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 40) | (tp << (64 - 40)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 52) | (tp << (64 - 52)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 57) | (tp << (64 - 57)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 14) | (tp << (64 - 14)), b0 -= b1 + k2, b1 -= k3 + t0
+    tp := b3 ^ b2, b3 := (tp >> 16) | (tp << (64 - 16)), b2 -= b3 + k4 + t1, b3 -= k0 + 12
 
-    tmp := b3 ^ b0, b3 := (tmp >> 32) | (tmp << (64 - 32)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 32) | (tmp << (64 - 32)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 58) | (tmp << (64 - 58)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 22) | (tmp << (64 - 22)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 12) | (tmp << (64 - 12)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 25) | (tmp << (64 - 25)), b0 -= b1 + k1, b1 -= k2 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b3 + k3 + t0, b3 -= k4 + 11
-    tmp := b3 ^ b0, b3 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 37) | (tmp << (64 - 37)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 23) | (tmp << (64 - 23)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 40) | (tmp << (64 - 40)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 52) | (tmp << (64 - 52)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 57) | (tmp << (64 - 57)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 14) | (tmp << (64 - 14)), b0 -= b1 + k0, b1 -= k1 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 16) | (tmp << (64 - 16)), b2 -= b3 + k2 + t2, b3 -= k3 + 10
+    tp := b3 ^ b0, b3 := (tp >> 32) | (tp << (64 - 32)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 32) | (tp << (64 - 32)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 58) | (tp << (64 - 58)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 22) | (tp << (64 - 22)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 46) | (tp << (64 - 46)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 12) | (tp << (64 - 12)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 25) | (tp << (64 - 25)), b0 -= b1 + k1, b1 -= k2 + t2
+    tp := b3 ^ b2, b3 := (tp >> 33) | (tp << (64 - 33)), b2 -= b3 + k3 + t0, b3 -= k4 + 11
+    tp := b3 ^ b0, b3 := (tp >> 5) | (tp << (64 - 5)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 37) | (tp << (64 - 37)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 23) | (tp << (64 - 23)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 40) | (tp << (64 - 40)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 52) | (tp << (64 - 52)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 57) | (tp << (64 - 57)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 14) | (tp << (64 - 14)), b0 -= b1 + k0, b1 -= k1 + t1
+    tp := b3 ^ b2, b3 := (tp >> 16) | (tp << (64 - 16)), b2 -= b3 + k2 + t2, b3 -= k3 + 10
 
-    tmp := b3 ^ b0, b3 := (tmp >> 32) | (tmp << (64 - 32)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 32) | (tmp << (64 - 32)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 58) | (tmp << (64 - 58)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 22) | (tmp << (64 - 22)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 12) | (tmp << (64 - 12)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 25) | (tmp << (64 - 25)), b0 -= b1 + k4, b1 -= k0 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b3 + k1 + t1, b3 -= k2 + 9
-    tmp := b3 ^ b0, b3 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 37) | (tmp << (64 - 37)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 23) | (tmp << (64 - 23)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 40) | (tmp << (64 - 40)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 52) | (tmp << (64 - 52)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 57) | (tmp << (64 - 57)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 14) | (tmp << (64 - 14)), b0 -= b1 + k3, b1 -= k4 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 16) | (tmp << (64 - 16)), b2 -= b3 + k0 + t0, b3 -= k1 + 8
+    tp := b3 ^ b0, b3 := (tp >> 32) | (tp << (64 - 32)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 32) | (tp << (64 - 32)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 58) | (tp << (64 - 58)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 22) | (tp << (64 - 22)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 46) | (tp << (64 - 46)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 12) | (tp << (64 - 12)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 25) | (tp << (64 - 25)), b0 -= b1 + k4, b1 -= k0 + t0
+    tp := b3 ^ b2, b3 := (tp >> 33) | (tp << (64 - 33)), b2 -= b3 + k1 + t1, b3 -= k2 + 9
+    tp := b3 ^ b0, b3 := (tp >> 5) | (tp << (64 - 5)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 37) | (tp << (64 - 37)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 23) | (tp << (64 - 23)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 40) | (tp << (64 - 40)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 52) | (tp << (64 - 52)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 57) | (tp << (64 - 57)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 14) | (tp << (64 - 14)), b0 -= b1 + k3, b1 -= k4 + t2
+    tp := b3 ^ b2, b3 := (tp >> 16) | (tp << (64 - 16)), b2 -= b3 + k0 + t0, b3 -= k1 + 8
 
-    tmp := b3 ^ b0, b3 := (tmp >> 32) | (tmp << (64 - 32)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 32) | (tmp << (64 - 32)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 58) | (tmp << (64 - 58)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 22) | (tmp << (64 - 22)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 12) | (tmp << (64 - 12)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 25) | (tmp << (64 - 25)), b0 -= b1 + k2, b1 -= k3 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b3 + k4 + t2, b3 -= k0 + 7
-    tmp := b3 ^ b0, b3 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 37) | (tmp << (64 - 37)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 23) | (tmp << (64 - 23)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 40) | (tmp << (64 - 40)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 52) | (tmp << (64 - 52)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 57) | (tmp << (64 - 57)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 14) | (tmp << (64 - 14)), b0 -= b1 + k1, b1 -= k2 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 16) | (tmp << (64 - 16)), b2 -= b3 + k3 + t1, b3 -= k4 + 6
+    tp := b3 ^ b0, b3 := (tp >> 32) | (tp << (64 - 32)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 32) | (tp << (64 - 32)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 58) | (tp << (64 - 58)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 22) | (tp << (64 - 22)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 46) | (tp << (64 - 46)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 12) | (tp << (64 - 12)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 25) | (tp << (64 - 25)), b0 -= b1 + k2, b1 -= k3 + t1
+    tp := b3 ^ b2, b3 := (tp >> 33) | (tp << (64 - 33)), b2 -= b3 + k4 + t2, b3 -= k0 + 7
+    tp := b3 ^ b0, b3 := (tp >> 5) | (tp << (64 - 5)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 37) | (tp << (64 - 37)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 23) | (tp << (64 - 23)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 40) | (tp << (64 - 40)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 52) | (tp << (64 - 52)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 57) | (tp << (64 - 57)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 14) | (tp << (64 - 14)), b0 -= b1 + k1, b1 -= k2 + t0
+    tp := b3 ^ b2, b3 := (tp >> 16) | (tp << (64 - 16)), b2 -= b3 + k3 + t1, b3 -= k4 + 6
 
-    tmp := b3 ^ b0, b3 := (tmp >> 32) | (tmp << (64 - 32)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 32) | (tmp << (64 - 32)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 58) | (tmp << (64 - 58)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 22) | (tmp << (64 - 22)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 12) | (tmp << (64 - 12)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 25) | (tmp << (64 - 25)), b0 -= b1 + k0, b1 -= k1 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b3 + k2 + t0, b3 -= k3 + 5
-    tmp := b3 ^ b0, b3 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 37) | (tmp << (64 - 37)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 23) | (tmp << (64 - 23)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 40) | (tmp << (64 - 40)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 52) | (tmp << (64 - 52)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 57) | (tmp << (64 - 57)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 14) | (tmp << (64 - 14)), b0 -= b1 + k4, b1 -= k0 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 16) | (tmp << (64 - 16)), b2 -= b3 + k1 + t2, b3 -= k2 + 4
+    tp := b3 ^ b0, b3 := (tp >> 32) | (tp << (64 - 32)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 32) | (tp << (64 - 32)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 58) | (tp << (64 - 58)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 22) | (tp << (64 - 22)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 46) | (tp << (64 - 46)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 12) | (tp << (64 - 12)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 25) | (tp << (64 - 25)), b0 -= b1 + k0, b1 -= k1 + t2
+    tp := b3 ^ b2, b3 := (tp >> 33) | (tp << (64 - 33)), b2 -= b3 + k2 + t0, b3 -= k3 + 5
+    tp := b3 ^ b0, b3 := (tp >> 5) | (tp << (64 - 5)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 37) | (tp << (64 - 37)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 23) | (tp << (64 - 23)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 40) | (tp << (64 - 40)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 52) | (tp << (64 - 52)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 57) | (tp << (64 - 57)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 14) | (tp << (64 - 14)), b0 -= b1 + k4, b1 -= k0 + t1
+    tp := b3 ^ b2, b3 := (tp >> 16) | (tp << (64 - 16)), b2 -= b3 + k1 + t2, b3 -= k2 + 4
 
-    tmp := b3 ^ b0, b3 := (tmp >> 32) | (tmp << (64 - 32)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 32) | (tmp << (64 - 32)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 58) | (tmp << (64 - 58)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 22) | (tmp << (64 - 22)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 12) | (tmp << (64 - 12)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 25) | (tmp << (64 - 25)), b0 -= b1 + k3, b1 -= k4 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b3 + k0 + t1, b3 -= k1 + 3
-    tmp := b3 ^ b0, b3 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 37) | (tmp << (64 - 37)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 23) | (tmp << (64 - 23)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 40) | (tmp << (64 - 40)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 52) | (tmp << (64 - 52)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 57) | (tmp << (64 - 57)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 14) | (tmp << (64 - 14)), b0 -= b1 + k2, b1 -= k3 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 16) | (tmp << (64 - 16)), b2 -= b3 + k4 + t0, b3 -= k0 + 2
+    tp := b3 ^ b0, b3 := (tp >> 32) | (tp << (64 - 32)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 32) | (tp << (64 - 32)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 58) | (tp << (64 - 58)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 22) | (tp << (64 - 22)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 46) | (tp << (64 - 46)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 12) | (tp << (64 - 12)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 25) | (tp << (64 - 25)), b0 -= b1 + k3, b1 -= k4 + t0
+    tp := b3 ^ b2, b3 := (tp >> 33) | (tp << (64 - 33)), b2 -= b3 + k0 + t1, b3 -= k1 + 3
+    tp := b3 ^ b0, b3 := (tp >> 5) | (tp << (64 - 5)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 37) | (tp << (64 - 37)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 23) | (tp << (64 - 23)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 40) | (tp << (64 - 40)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 52) | (tp << (64 - 52)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 57) | (tp << (64 - 57)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 14) | (tp << (64 - 14)), b0 -= b1 + k2, b1 -= k3 + t2
+    tp := b3 ^ b2, b3 := (tp >> 16) | (tp << (64 - 16)), b2 -= b3 + k4 + t0, b3 -= k0 + 2
 
-    tmp := b3 ^ b0, b3 := (tmp >> 32) | (tmp << (64 - 32)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 32) | (tmp << (64 - 32)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 58) | (tmp << (64 - 58)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 22) | (tmp << (64 - 22)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 12) | (tmp << (64 - 12)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 25) | (tmp << (64 - 25)), b0 -= b1 + k1, b1 -= k2 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b3 + k3 + t2, b3 -= k4 + 1
-    tmp := b3 ^ b0, b3 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 37) | (tmp << (64 - 37)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 23) | (tmp << (64 - 23)), b0 -= b1
-    tmp := b3 ^ b2, b3 := (tmp >> 40) | (tmp << (64 - 40)), b2 -= b3
-    tmp := b3 ^ b0, b3 := (tmp >> 52) | (tmp << (64 - 52)), b0 -= b3
-    tmp := b1 ^ b2, b1 := (tmp >> 57) | (tmp << (64 - 57)), b2 -= b1
-    tmp := b1 ^ b0, b1 := (tmp >> 14) | (tmp << (64 - 14)), b0 -= b1 + k0, b1 -= k1 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 16) | (tmp << (64 - 16)), b2 -= b3 + k2 + t1, b3 -= k3
+    tp := b3 ^ b0, b3 := (tp >> 32) | (tp << (64 - 32)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 32) | (tp << (64 - 32)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 58) | (tp << (64 - 58)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 22) | (tp << (64 - 22)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 46) | (tp << (64 - 46)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 12) | (tp << (64 - 12)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 25) | (tp << (64 - 25)), b0 -= b1 + k1, b1 -= k2 + t1
+    tp := b3 ^ b2, b3 := (tp >> 33) | (tp << (64 - 33)), b2 -= b3 + k3 + t2, b3 -= k4 + 1
+    tp := b3 ^ b0, b3 := (tp >> 5) | (tp << (64 - 5)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 37) | (tp << (64 - 37)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 23) | (tp << (64 - 23)), b0 -= b1
+    tp := b3 ^ b2, b3 := (tp >> 40) | (tp << (64 - 40)), b2 -= b3
+    tp := b3 ^ b0, b3 := (tp >> 52) | (tp << (64 - 52)), b0 -= b3
+    tp := b1 ^ b2, b1 := (tp >> 57) | (tp << (64 - 57)), b2 -= b1
+    tp := b1 ^ b0, b1 := (tp >> 14) | (tp << (64 - 14)), b0 -= b1 + k0, b1 -= k1 + t0
+    tp := b3 ^ b2, b3 := (tp >> 16) | (tp << (64 - 16)), b2 -= b3 + k2 + t1, b3 -= k3
 
+    output:=[]
     output[0] := b0
     output[1] := b1
     output[2] := b2
@@ -357,14 +399,14 @@ threefishEncrypt512(keyC,data){
     b4 := data[4], b5 := data[5]
     b6 := data[6], b7 := data[7]
 
-    k0 := keyC->key[0], k1 := keyC->key[1]
-    k2 := keyC->key[2], k3 := keyC->key[3]
-    k4 := keyC->key[4], k5 := keyC->key[5]
-    k6 := keyC->key[6], k7 := keyC->key[7]
-    k8 := keyC->key[8]
+    k0 := keyC.key[0], k1 := keyC.key[1]
+    k2 := keyC.key[2], k3 := keyC.key[3]
+    k4 := keyC.key[4], k5 := keyC.key[5]
+    k6 := keyC.key[6], k7 := keyC.key[7]
+    k8 := keyC.key[8]
 
-    t0 := keyC->tweak[0], t1 := keyC->tweak[1]
-    t2 := keyC->tweak[2]
+    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
+    t2 := keyC.tweak[2]
 
     b1 += k1, b0 += b1 + k0, b1 := ((b1 << 46) | (b1 >> (64 - 46))) ^ b0
     b3 += k3, b2 += b3 + k2, b3 := ((b3 << 36) | (b3 >> (64 - 36))) ^ b2
@@ -655,6 +697,7 @@ threefishEncrypt512(keyC,data){
     b2 += b5, b5 := ((b5 << 56) | (b5 >> (64 - 56))) ^ b2
     b4 += b3, b3 := ((b3 << 22) | (b3 >> (64 - 22))) ^ b4
 
+    output:=[]
     output[0] := b0 + k0
     output[1] := b1 + k1
     output[2] := b2 + k2
@@ -673,13 +716,13 @@ threefishDecrypt512(keyC,data){
     b2 := data[2], b3 := data[3]
     b4 := data[4], b5 := data[5]
     b6 := data[6], b7 := data[7]
-    k0 := keyC->key[0], k1 := keyC->key[1]
-    k2 := keyC->key[2], k3 := keyC->key[3]
-    k4 := keyC->key[4], k5 := keyC->key[5]
-    k6 := keyC->key[6], k7 := keyC->key[7]
-    k8 := keyC->key[8]
-    t0 := keyC->tweak[0], t1 := keyC->tweak[1]
-    t2 := keyC->tweak[2]
+    k0 := keyC.key[0], k1 := keyC.key[1]
+    k2 := keyC.key[2], k3 := keyC.key[3]
+    k4 := keyC.key[4], k5 := keyC.key[5]
+    k6 := keyC.key[6], k7 := keyC.key[7]
+    k8 := keyC.key[8]
+    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
+    t2 := keyC.tweak[2]
 
     b0 -= k0
     b1 -= k1
@@ -689,295 +732,296 @@ threefishDecrypt512(keyC,data){
     b5 -= k5 + t0
     b6 -= k6 + t1
     b7 -= k7 + 18
-    tmp := b3 ^ b4, b3 := (tmp >> 22) | (tmp << (64 - 22)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 56) | (tmp << (64 - 56)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 35) | (tmp << (64 - 35)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 8) | (tmp << (64 - 8)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 43) | (tmp << (64 - 43)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 29) | (tmp << (64 - 29)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 25) | (tmp << (64 - 25)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 17) | (tmp << (64 - 17)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 50) | (tmp << (64 - 50)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 24) | (tmp << (64 - 24)), b6 -= b7 + k5 + t0, b7 -= k6 + 17
-    tmp := b5 ^ b4, b5 := (tmp >> 34) | (tmp << (64 - 34)), b4 -= b5 + k3, b5 -= k4 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 30) | (tmp << (64 - 30)), b2 -= b3 + k1, b3 -= k2
-    tmp := b1 ^ b0, b1 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b1 + k8, b1 -= k0
-    tmp := b3 ^ b4, b3 := (tmp >> 56) | (tmp << (64 - 56)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 54) | (tmp << (64 - 54)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 44) | (tmp << (64 - 44)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 39) | (tmp << (64 - 39)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 36) | (tmp << (64 - 36)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 49) | (tmp << (64 - 49)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 17) | (tmp << (64 - 17)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 42) | (tmp << (64 - 42)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 14) | (tmp << (64 - 14)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 27) | (tmp << (64 - 27)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 37) | (tmp << (64 - 37)), b6 -= b7 + k4 + t2, b7 -= k5 + 16
-    tmp := b5 ^ b4, b5 := (tmp >> 19) | (tmp << (64 - 19)), b4 -= b5 + k2, b5 -= k3 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 36) | (tmp << (64 - 36)), b2 -= b3 + k0, b3 -= k1
-    tmp := b1 ^ b0, b1 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b1 + k7, b1 -= k8
-    tmp := b3 ^ b4, b3 := (tmp >> 22) | (tmp << (64 - 22)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 56) | (tmp << (64 - 56)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 35) | (tmp << (64 - 35)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 8) | (tmp << (64 - 8)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 43) | (tmp << (64 - 43)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 29) | (tmp << (64 - 29)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 25) | (tmp << (64 - 25)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 17) | (tmp << (64 - 17)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 50) | (tmp << (64 - 50)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 24) | (tmp << (64 - 24)), b6 -= b7 + k3 + t1, b7 -= k4 + 15
-    tmp := b5 ^ b4, b5 := (tmp >> 34) | (tmp << (64 - 34)), b4 -= b5 + k1, b5 -= k2 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 30) | (tmp << (64 - 30)), b2 -= b3 + k8, b3 -= k0
-    tmp := b1 ^ b0, b1 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b1 + k6, b1 -= k7
-    tmp := b3 ^ b4, b3 := (tmp >> 56) | (tmp << (64 - 56)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 54) | (tmp << (64 - 54)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 44) | (tmp << (64 - 44)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 39) | (tmp << (64 - 39)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 36) | (tmp << (64 - 36)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 49) | (tmp << (64 - 49)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 17) | (tmp << (64 - 17)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 42) | (tmp << (64 - 42)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 14) | (tmp << (64 - 14)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 27) | (tmp << (64 - 27)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 37) | (tmp << (64 - 37)), b6 -= b7 + k2 + t0, b7 -= k3 + 14
-    tmp := b5 ^ b4, b5 := (tmp >> 19) | (tmp << (64 - 19)), b4 -= b5 + k0, b5 -= k1 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 36) | (tmp << (64 - 36)), b2 -= b3 + k7, b3 -= k8
-    tmp := b1 ^ b0, b1 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b1 + k5, b1 -= k6
-    tmp := b3 ^ b4, b3 := (tmp >> 22) | (tmp << (64 - 22)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 56) | (tmp << (64 - 56)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 35) | (tmp << (64 - 35)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 8) | (tmp << (64 - 8)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 43) | (tmp << (64 - 43)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 29) | (tmp << (64 - 29)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 25) | (tmp << (64 - 25)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 17) | (tmp << (64 - 17)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 50) | (tmp << (64 - 50)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 24) | (tmp << (64 - 24)), b6 -= b7 + k1 + t2, b7 -= k2 + 13
-    tmp := b5 ^ b4, b5 := (tmp >> 34) | (tmp << (64 - 34)), b4 -= b5 + k8, b5 -= k0 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 30) | (tmp << (64 - 30)), b2 -= b3 + k6, b3 -= k7
-    tmp := b1 ^ b0, b1 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b1 + k4, b1 -= k5
-    tmp := b3 ^ b4, b3 := (tmp >> 56) | (tmp << (64 - 56)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 54) | (tmp << (64 - 54)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 44) | (tmp << (64 - 44)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 39) | (tmp << (64 - 39)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 36) | (tmp << (64 - 36)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 49) | (tmp << (64 - 49)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 17) | (tmp << (64 - 17)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 42) | (tmp << (64 - 42)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 14) | (tmp << (64 - 14)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 27) | (tmp << (64 - 27)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 37) | (tmp << (64 - 37)), b6 -= b7 + k0 + t1, b7 -= k1 + 12
-    tmp := b5 ^ b4, b5 := (tmp >> 19) | (tmp << (64 - 19)), b4 -= b5 + k7, b5 -= k8 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 36) | (tmp << (64 - 36)), b2 -= b3 + k5, b3 -= k6
-    tmp := b1 ^ b0, b1 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b1 + k3, b1 -= k4
-    tmp := b3 ^ b4, b3 := (tmp >> 22) | (tmp << (64 - 22)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 56) | (tmp << (64 - 56)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 35) | (tmp << (64 - 35)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 8) | (tmp << (64 - 8)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 43) | (tmp << (64 - 43)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 29) | (tmp << (64 - 29)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 25) | (tmp << (64 - 25)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 17) | (tmp << (64 - 17)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 50) | (tmp << (64 - 50)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 24) | (tmp << (64 - 24)), b6 -= b7 + k8 + t0, b7 -= k0 + 11
-    tmp := b5 ^ b4, b5 := (tmp >> 34) | (tmp << (64 - 34)), b4 -= b5 + k6, b5 -= k7 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 30) | (tmp << (64 - 30)), b2 -= b3 + k4, b3 -= k5
-    tmp := b1 ^ b0, b1 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b1 + k2, b1 -= k3
-    tmp := b3 ^ b4, b3 := (tmp >> 56) | (tmp << (64 - 56)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 54) | (tmp << (64 - 54)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 44) | (tmp << (64 - 44)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 39) | (tmp << (64 - 39)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 36) | (tmp << (64 - 36)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 49) | (tmp << (64 - 49)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 17) | (tmp << (64 - 17)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 42) | (tmp << (64 - 42)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 14) | (tmp << (64 - 14)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 27) | (tmp << (64 - 27)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 37) | (tmp << (64 - 37)), b6 -= b7 + k7 + t2, b7 -= k8 + 10
-    tmp := b5 ^ b4, b5 := (tmp >> 19) | (tmp << (64 - 19)), b4 -= b5 + k5, b5 -= k6 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 36) | (tmp << (64 - 36)), b2 -= b3 + k3, b3 -= k4
-    tmp := b1 ^ b0, b1 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b1 + k1, b1 -= k2
-    tmp := b3 ^ b4, b3 := (tmp >> 22) | (tmp << (64 - 22)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 56) | (tmp << (64 - 56)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 35) | (tmp << (64 - 35)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 8) | (tmp << (64 - 8)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 43) | (tmp << (64 - 43)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 29) | (tmp << (64 - 29)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 25) | (tmp << (64 - 25)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 17) | (tmp << (64 - 17)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 50) | (tmp << (64 - 50)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 24) | (tmp << (64 - 24)), b6 -= b7 + k6 + t1, b7 -= k7 + 9
-    tmp := b5 ^ b4, b5 := (tmp >> 34) | (tmp << (64 - 34)), b4 -= b5 + k4, b5 -= k5 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 30) | (tmp << (64 - 30)), b2 -= b3 + k2, b3 -= k3
-    tmp := b1 ^ b0, b1 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b1 + k0, b1 -= k1
-    tmp := b3 ^ b4, b3 := (tmp >> 56) | (tmp << (64 - 56)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 54) | (tmp << (64 - 54)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 44) | (tmp << (64 - 44)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 39) | (tmp << (64 - 39)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 36) | (tmp << (64 - 36)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 49) | (tmp << (64 - 49)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 17) | (tmp << (64 - 17)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 42) | (tmp << (64 - 42)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 14) | (tmp << (64 - 14)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 27) | (tmp << (64 - 27)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 37) | (tmp << (64 - 37)), b6 -= b7 + k5 + t0, b7 -= k6 + 8
-    tmp := b5 ^ b4, b5 := (tmp >> 19) | (tmp << (64 - 19)), b4 -= b5 + k3, b5 -= k4 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 36) | (tmp << (64 - 36)), b2 -= b3 + k1, b3 -= k2
-    tmp := b1 ^ b0, b1 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b1 + k8, b1 -= k0
-    tmp := b3 ^ b4, b3 := (tmp >> 22) | (tmp << (64 - 22)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 56) | (tmp << (64 - 56)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 35) | (tmp << (64 - 35)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 8) | (tmp << (64 - 8)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 43) | (tmp << (64 - 43)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 29) | (tmp << (64 - 29)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 25) | (tmp << (64 - 25)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 17) | (tmp << (64 - 17)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 50) | (tmp << (64 - 50)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 24) | (tmp << (64 - 24)), b6 -= b7 + k4 + t2, b7 -= k5 + 7
-    tmp := b5 ^ b4, b5 := (tmp >> 34) | (tmp << (64 - 34)), b4 -= b5 + k2, b5 -= k3 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 30) | (tmp << (64 - 30)), b2 -= b3 + k0, b3 -= k1
-    tmp := b1 ^ b0, b1 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b1 + k7, b1 -= k8
-    tmp := b3 ^ b4, b3 := (tmp >> 56) | (tmp << (64 - 56)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 54) | (tmp << (64 - 54)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 44) | (tmp << (64 - 44)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 39) | (tmp << (64 - 39)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 36) | (tmp << (64 - 36)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 49) | (tmp << (64 - 49)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 17) | (tmp << (64 - 17)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 42) | (tmp << (64 - 42)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 14) | (tmp << (64 - 14)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 27) | (tmp << (64 - 27)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 37) | (tmp << (64 - 37)), b6 -= b7 + k3 + t1, b7 -= k4 + 6
-    tmp := b5 ^ b4, b5 := (tmp >> 19) | (tmp << (64 - 19)), b4 -= b5 + k1, b5 -= k2 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 36) | (tmp << (64 - 36)), b2 -= b3 + k8, b3 -= k0
-    tmp := b1 ^ b0, b1 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b1 + k6, b1 -= k7
-    tmp := b3 ^ b4, b3 := (tmp >> 22) | (tmp << (64 - 22)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 56) | (tmp << (64 - 56)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 35) | (tmp << (64 - 35)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 8) | (tmp << (64 - 8)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 43) | (tmp << (64 - 43)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 29) | (tmp << (64 - 29)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 25) | (tmp << (64 - 25)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 17) | (tmp << (64 - 17)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 50) | (tmp << (64 - 50)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 24) | (tmp << (64 - 24)), b6 -= b7 + k2 + t0, b7 -= k3 + 5
-    tmp := b5 ^ b4, b5 := (tmp >> 34) | (tmp << (64 - 34)), b4 -= b5 + k0, b5 -= k1 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 30) | (tmp << (64 - 30)), b2 -= b3 + k7, b3 -= k8
-    tmp := b1 ^ b0, b1 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b1 + k5, b1 -= k6
-    tmp := b3 ^ b4, b3 := (tmp >> 56) | (tmp << (64 - 56)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 54) | (tmp << (64 - 54)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 44) | (tmp << (64 - 44)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 39) | (tmp << (64 - 39)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 36) | (tmp << (64 - 36)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 49) | (tmp << (64 - 49)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 17) | (tmp << (64 - 17)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 42) | (tmp << (64 - 42)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 14) | (tmp << (64 - 14)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 27) | (tmp << (64 - 27)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 37) | (tmp << (64 - 37)), b6 -= b7 + k1 + t2, b7 -= k2 + 4
-    tmp := b5 ^ b4, b5 := (tmp >> 19) | (tmp << (64 - 19)), b4 -= b5 + k8, b5 -= k0 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 36) | (tmp << (64 - 36)), b2 -= b3 + k6, b3 -= k7
-    tmp := b1 ^ b0, b1 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b1 + k4, b1 -= k5
-    tmp := b3 ^ b4, b3 := (tmp >> 22) | (tmp << (64 - 22)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 56) | (tmp << (64 - 56)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 35) | (tmp << (64 - 35)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 8) | (tmp << (64 - 8)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 43) | (tmp << (64 - 43)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 29) | (tmp << (64 - 29)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 25) | (tmp << (64 - 25)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 17) | (tmp << (64 - 17)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 50) | (tmp << (64 - 50)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 24) | (tmp << (64 - 24)), b6 -= b7 + k0 + t1, b7 -= k1 + 3
-    tmp := b5 ^ b4, b5 := (tmp >> 34) | (tmp << (64 - 34)), b4 -= b5 + k7, b5 -= k8 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 30) | (tmp << (64 - 30)), b2 -= b3 + k5, b3 -= k6
-    tmp := b1 ^ b0, b1 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b1 + k3, b1 -= k4
-    tmp := b3 ^ b4, b3 := (tmp >> 56) | (tmp << (64 - 56)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 54) | (tmp << (64 - 54)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 44) | (tmp << (64 - 44)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 39) | (tmp << (64 - 39)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 36) | (tmp << (64 - 36)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 49) | (tmp << (64 - 49)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 17) | (tmp << (64 - 17)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 42) | (tmp << (64 - 42)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 14) | (tmp << (64 - 14)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 27) | (tmp << (64 - 27)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 37) | (tmp << (64 - 37)), b6 -= b7 + k8 + t0, b7 -= k0 + 2
-    tmp := b5 ^ b4, b5 := (tmp >> 19) | (tmp << (64 - 19)), b4 -= b5 + k6, b5 -= k7 + t2
-    tmp := b3 ^ b2, b3 := (tmp >> 36) | (tmp << (64 - 36)), b2 -= b3 + k4, b3 -= k5
-    tmp := b1 ^ b0, b1 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b1 + k2, b1 -= k3
-    tmp := b3 ^ b4, b3 := (tmp >> 22) | (tmp << (64 - 22)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 56) | (tmp << (64 - 56)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 35) | (tmp << (64 - 35)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 8) | (tmp << (64 - 8)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 43) | (tmp << (64 - 43)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 29) | (tmp << (64 - 29)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 25) | (tmp << (64 - 25)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 17) | (tmp << (64 - 17)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 50) | (tmp << (64 - 50)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 24) | (tmp << (64 - 24)), b6 -= b7 + k7 + t2, b7 -= k8 + 1
-    tmp := b5 ^ b4, b5 := (tmp >> 34) | (tmp << (64 - 34)), b4 -= b5 + k5, b5 -= k6 + t1
-    tmp := b3 ^ b2, b3 := (tmp >> 30) | (tmp << (64 - 30)), b2 -= b3 + k3, b3 -= k4
-    tmp := b1 ^ b0, b1 := (tmp >> 39) | (tmp << (64 - 39)), b0 -= b1 + k1, b1 -= k2
-    tmp := b3 ^ b4, b3 := (tmp >> 56) | (tmp << (64 - 56)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 54) | (tmp << (64 - 54)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b7
-    tmp := b1 ^ b6, b1 := (tmp >> 44) | (tmp << (64 - 44)), b6 -= b1
-    tmp := b7 ^ b2, b7 := (tmp >> 39) | (tmp << (64 - 39)), b2 -= b7
-    tmp := b5 ^ b0, b5 := (tmp >> 36) | (tmp << (64 - 36)), b0 -= b5
-    tmp := b3 ^ b6, b3 := (tmp >> 49) | (tmp << (64 - 49)), b6 -= b3
-    tmp := b1 ^ b4, b1 := (tmp >> 17) | (tmp << (64 - 17)), b4 -= b1
-    tmp := b3 ^ b0, b3 := (tmp >> 42) | (tmp << (64 - 42)), b0 -= b3
-    tmp := b5 ^ b6, b5 := (tmp >> 14) | (tmp << (64 - 14)), b6 -= b5
-    tmp := b7 ^ b4, b7 := (tmp >> 27) | (tmp << (64 - 27)), b4 -= b7
-    tmp := b1 ^ b2, b1 := (tmp >> 33) | (tmp << (64 - 33)), b2 -= b1
-    tmp := b7 ^ b6, b7 := (tmp >> 37) | (tmp << (64 - 37)), b6 -= b7 + k6 + t1, b7 -= k7
-    tmp := b5 ^ b4, b5 := (tmp >> 19) | (tmp << (64 - 19)), b4 -= b5 + k4, b5 -= k5 + t0
-    tmp := b3 ^ b2, b3 := (tmp >> 36) | (tmp << (64 - 36)), b2 -= b3 + k2, b3 -= k3
-    tmp := b1 ^ b0, b1 := (tmp >> 46) | (tmp << (64 - 46)), b0 -= b1 + k0, b1 -= k1
+    tp := b3 ^ b4, b3 := (tp >> 22) | (tp << (64 - 22)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 56) | (tp << (64 - 56)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 35) | (tp << (64 - 35)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 8) | (tp << (64 - 8)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 43) | (tp << (64 - 43)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 39) | (tp << (64 - 39)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 29) | (tp << (64 - 29)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 25) | (tp << (64 - 25)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 17) | (tp << (64 - 17)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 10) | (tp << (64 - 10)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 50) | (tp << (64 - 50)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 13) | (tp << (64 - 13)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 24) | (tp << (64 - 24)), b6 -= b7 + k5 + t0, b7 -= k6 + 17
+    tp := b5 ^ b4, b5 := (tp >> 34) | (tp << (64 - 34)), b4 -= b5 + k3, b5 -= k4 + t2
+    tp := b3 ^ b2, b3 := (tp >> 30) | (tp << (64 - 30)), b2 -= b3 + k1, b3 -= k2
+    tp := b1 ^ b0, b1 := (tp >> 39) | (tp << (64 - 39)), b0 -= b1 + k8, b1 -= k0
+    tp := b3 ^ b4, b3 := (tp >> 56) | (tp << (64 - 56)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 54) | (tp << (64 - 54)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 9) | (tp << (64 - 9)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 44) | (tp << (64 - 44)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 39) | (tp << (64 - 39)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 36) | (tp << (64 - 36)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 49) | (tp << (64 - 49)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 17) | (tp << (64 - 17)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 42) | (tp << (64 - 42)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 14) | (tp << (64 - 14)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 27) | (tp << (64 - 27)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 33) | (tp << (64 - 33)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 37) | (tp << (64 - 37)), b6 -= b7 + k4 + t2, b7 -= k5 + 16
+    tp := b5 ^ b4, b5 := (tp >> 19) | (tp << (64 - 19)), b4 -= b5 + k2, b5 -= k3 + t1
+    tp := b3 ^ b2, b3 := (tp >> 36) | (tp << (64 - 36)), b2 -= b3 + k0, b3 -= k1
+    tp := b1 ^ b0, b1 := (tp >> 46) | (tp << (64 - 46)), b0 -= b1 + k7, b1 -= k8
+    tp := b3 ^ b4, b3 := (tp >> 22) | (tp << (64 - 22)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 56) | (tp << (64 - 56)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 35) | (tp << (64 - 35)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 8) | (tp << (64 - 8)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 43) | (tp << (64 - 43)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 39) | (tp << (64 - 39)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 29) | (tp << (64 - 29)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 25) | (tp << (64 - 25)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 17) | (tp << (64 - 17)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 10) | (tp << (64 - 10)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 50) | (tp << (64 - 50)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 13) | (tp << (64 - 13)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 24) | (tp << (64 - 24)), b6 -= b7 + k3 + t1, b7 -= k4 + 15
+    tp := b5 ^ b4, b5 := (tp >> 34) | (tp << (64 - 34)), b4 -= b5 + k1, b5 -= k2 + t0
+    tp := b3 ^ b2, b3 := (tp >> 30) | (tp << (64 - 30)), b2 -= b3 + k8, b3 -= k0
+    tp := b1 ^ b0, b1 := (tp >> 39) | (tp << (64 - 39)), b0 -= b1 + k6, b1 -= k7
+    tp := b3 ^ b4, b3 := (tp >> 56) | (tp << (64 - 56)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 54) | (tp << (64 - 54)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 9) | (tp << (64 - 9)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 44) | (tp << (64 - 44)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 39) | (tp << (64 - 39)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 36) | (tp << (64 - 36)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 49) | (tp << (64 - 49)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 17) | (tp << (64 - 17)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 42) | (tp << (64 - 42)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 14) | (tp << (64 - 14)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 27) | (tp << (64 - 27)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 33) | (tp << (64 - 33)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 37) | (tp << (64 - 37)), b6 -= b7 + k2 + t0, b7 -= k3 + 14
+    tp := b5 ^ b4, b5 := (tp >> 19) | (tp << (64 - 19)), b4 -= b5 + k0, b5 -= k1 + t2
+    tp := b3 ^ b2, b3 := (tp >> 36) | (tp << (64 - 36)), b2 -= b3 + k7, b3 -= k8
+    tp := b1 ^ b0, b1 := (tp >> 46) | (tp << (64 - 46)), b0 -= b1 + k5, b1 -= k6
+    tp := b3 ^ b4, b3 := (tp >> 22) | (tp << (64 - 22)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 56) | (tp << (64 - 56)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 35) | (tp << (64 - 35)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 8) | (tp << (64 - 8)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 43) | (tp << (64 - 43)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 39) | (tp << (64 - 39)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 29) | (tp << (64 - 29)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 25) | (tp << (64 - 25)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 17) | (tp << (64 - 17)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 10) | (tp << (64 - 10)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 50) | (tp << (64 - 50)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 13) | (tp << (64 - 13)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 24) | (tp << (64 - 24)), b6 -= b7 + k1 + t2, b7 -= k2 + 13
+    tp := b5 ^ b4, b5 := (tp >> 34) | (tp << (64 - 34)), b4 -= b5 + k8, b5 -= k0 + t1
+    tp := b3 ^ b2, b3 := (tp >> 30) | (tp << (64 - 30)), b2 -= b3 + k6, b3 -= k7
+    tp := b1 ^ b0, b1 := (tp >> 39) | (tp << (64 - 39)), b0 -= b1 + k4, b1 -= k5
+    tp := b3 ^ b4, b3 := (tp >> 56) | (tp << (64 - 56)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 54) | (tp << (64 - 54)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 9) | (tp << (64 - 9)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 44) | (tp << (64 - 44)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 39) | (tp << (64 - 39)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 36) | (tp << (64 - 36)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 49) | (tp << (64 - 49)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 17) | (tp << (64 - 17)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 42) | (tp << (64 - 42)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 14) | (tp << (64 - 14)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 27) | (tp << (64 - 27)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 33) | (tp << (64 - 33)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 37) | (tp << (64 - 37)), b6 -= b7 + k0 + t1, b7 -= k1 + 12
+    tp := b5 ^ b4, b5 := (tp >> 19) | (tp << (64 - 19)), b4 -= b5 + k7, b5 -= k8 + t0
+    tp := b3 ^ b2, b3 := (tp >> 36) | (tp << (64 - 36)), b2 -= b3 + k5, b3 -= k6
+    tp := b1 ^ b0, b1 := (tp >> 46) | (tp << (64 - 46)), b0 -= b1 + k3, b1 -= k4
+    tp := b3 ^ b4, b3 := (tp >> 22) | (tp << (64 - 22)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 56) | (tp << (64 - 56)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 35) | (tp << (64 - 35)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 8) | (tp << (64 - 8)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 43) | (tp << (64 - 43)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 39) | (tp << (64 - 39)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 29) | (tp << (64 - 29)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 25) | (tp << (64 - 25)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 17) | (tp << (64 - 17)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 10) | (tp << (64 - 10)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 50) | (tp << (64 - 50)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 13) | (tp << (64 - 13)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 24) | (tp << (64 - 24)), b6 -= b7 + k8 + t0, b7 -= k0 + 11
+    tp := b5 ^ b4, b5 := (tp >> 34) | (tp << (64 - 34)), b4 -= b5 + k6, b5 -= k7 + t2
+    tp := b3 ^ b2, b3 := (tp >> 30) | (tp << (64 - 30)), b2 -= b3 + k4, b3 -= k5
+    tp := b1 ^ b0, b1 := (tp >> 39) | (tp << (64 - 39)), b0 -= b1 + k2, b1 -= k3
+    tp := b3 ^ b4, b3 := (tp >> 56) | (tp << (64 - 56)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 54) | (tp << (64 - 54)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 9) | (tp << (64 - 9)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 44) | (tp << (64 - 44)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 39) | (tp << (64 - 39)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 36) | (tp << (64 - 36)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 49) | (tp << (64 - 49)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 17) | (tp << (64 - 17)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 42) | (tp << (64 - 42)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 14) | (tp << (64 - 14)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 27) | (tp << (64 - 27)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 33) | (tp << (64 - 33)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 37) | (tp << (64 - 37)), b6 -= b7 + k7 + t2, b7 -= k8 + 10
+    tp := b5 ^ b4, b5 := (tp >> 19) | (tp << (64 - 19)), b4 -= b5 + k5, b5 -= k6 + t1
+    tp := b3 ^ b2, b3 := (tp >> 36) | (tp << (64 - 36)), b2 -= b3 + k3, b3 -= k4
+    tp := b1 ^ b0, b1 := (tp >> 46) | (tp << (64 - 46)), b0 -= b1 + k1, b1 -= k2
+    tp := b3 ^ b4, b3 := (tp >> 22) | (tp << (64 - 22)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 56) | (tp << (64 - 56)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 35) | (tp << (64 - 35)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 8) | (tp << (64 - 8)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 43) | (tp << (64 - 43)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 39) | (tp << (64 - 39)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 29) | (tp << (64 - 29)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 25) | (tp << (64 - 25)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 17) | (tp << (64 - 17)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 10) | (tp << (64 - 10)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 50) | (tp << (64 - 50)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 13) | (tp << (64 - 13)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 24) | (tp << (64 - 24)), b6 -= b7 + k6 + t1, b7 -= k7 + 9
+    tp := b5 ^ b4, b5 := (tp >> 34) | (tp << (64 - 34)), b4 -= b5 + k4, b5 -= k5 + t0
+    tp := b3 ^ b2, b3 := (tp >> 30) | (tp << (64 - 30)), b2 -= b3 + k2, b3 -= k3
+    tp := b1 ^ b0, b1 := (tp >> 39) | (tp << (64 - 39)), b0 -= b1 + k0, b1 -= k1
+    tp := b3 ^ b4, b3 := (tp >> 56) | (tp << (64 - 56)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 54) | (tp << (64 - 54)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 9) | (tp << (64 - 9)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 44) | (tp << (64 - 44)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 39) | (tp << (64 - 39)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 36) | (tp << (64 - 36)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 49) | (tp << (64 - 49)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 17) | (tp << (64 - 17)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 42) | (tp << (64 - 42)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 14) | (tp << (64 - 14)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 27) | (tp << (64 - 27)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 33) | (tp << (64 - 33)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 37) | (tp << (64 - 37)), b6 -= b7 + k5 + t0, b7 -= k6 + 8
+    tp := b5 ^ b4, b5 := (tp >> 19) | (tp << (64 - 19)), b4 -= b5 + k3, b5 -= k4 + t2
+    tp := b3 ^ b2, b3 := (tp >> 36) | (tp << (64 - 36)), b2 -= b3 + k1, b3 -= k2
+    tp := b1 ^ b0, b1 := (tp >> 46) | (tp << (64 - 46)), b0 -= b1 + k8, b1 -= k0
+    tp := b3 ^ b4, b3 := (tp >> 22) | (tp << (64 - 22)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 56) | (tp << (64 - 56)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 35) | (tp << (64 - 35)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 8) | (tp << (64 - 8)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 43) | (tp << (64 - 43)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 39) | (tp << (64 - 39)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 29) | (tp << (64 - 29)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 25) | (tp << (64 - 25)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 17) | (tp << (64 - 17)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 10) | (tp << (64 - 10)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 50) | (tp << (64 - 50)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 13) | (tp << (64 - 13)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 24) | (tp << (64 - 24)), b6 -= b7 + k4 + t2, b7 -= k5 + 7
+    tp := b5 ^ b4, b5 := (tp >> 34) | (tp << (64 - 34)), b4 -= b5 + k2, b5 -= k3 + t1
+    tp := b3 ^ b2, b3 := (tp >> 30) | (tp << (64 - 30)), b2 -= b3 + k0, b3 -= k1
+    tp := b1 ^ b0, b1 := (tp >> 39) | (tp << (64 - 39)), b0 -= b1 + k7, b1 -= k8
+    tp := b3 ^ b4, b3 := (tp >> 56) | (tp << (64 - 56)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 54) | (tp << (64 - 54)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 9) | (tp << (64 - 9)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 44) | (tp << (64 - 44)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 39) | (tp << (64 - 39)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 36) | (tp << (64 - 36)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 49) | (tp << (64 - 49)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 17) | (tp << (64 - 17)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 42) | (tp << (64 - 42)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 14) | (tp << (64 - 14)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 27) | (tp << (64 - 27)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 33) | (tp << (64 - 33)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 37) | (tp << (64 - 37)), b6 -= b7 + k3 + t1, b7 -= k4 + 6
+    tp := b5 ^ b4, b5 := (tp >> 19) | (tp << (64 - 19)), b4 -= b5 + k1, b5 -= k2 + t0
+    tp := b3 ^ b2, b3 := (tp >> 36) | (tp << (64 - 36)), b2 -= b3 + k8, b3 -= k0
+    tp := b1 ^ b0, b1 := (tp >> 46) | (tp << (64 - 46)), b0 -= b1 + k6, b1 -= k7
+    tp := b3 ^ b4, b3 := (tp >> 22) | (tp << (64 - 22)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 56) | (tp << (64 - 56)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 35) | (tp << (64 - 35)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 8) | (tp << (64 - 8)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 43) | (tp << (64 - 43)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 39) | (tp << (64 - 39)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 29) | (tp << (64 - 29)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 25) | (tp << (64 - 25)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 17) | (tp << (64 - 17)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 10) | (tp << (64 - 10)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 50) | (tp << (64 - 50)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 13) | (tp << (64 - 13)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 24) | (tp << (64 - 24)), b6 -= b7 + k2 + t0, b7 -= k3 + 5
+    tp := b5 ^ b4, b5 := (tp >> 34) | (tp << (64 - 34)), b4 -= b5 + k0, b5 -= k1 + t2
+    tp := b3 ^ b2, b3 := (tp >> 30) | (tp << (64 - 30)), b2 -= b3 + k7, b3 -= k8
+    tp := b1 ^ b0, b1 := (tp >> 39) | (tp << (64 - 39)), b0 -= b1 + k5, b1 -= k6
+    tp := b3 ^ b4, b3 := (tp >> 56) | (tp << (64 - 56)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 54) | (tp << (64 - 54)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 9) | (tp << (64 - 9)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 44) | (tp << (64 - 44)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 39) | (tp << (64 - 39)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 36) | (tp << (64 - 36)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 49) | (tp << (64 - 49)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 17) | (tp << (64 - 17)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 42) | (tp << (64 - 42)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 14) | (tp << (64 - 14)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 27) | (tp << (64 - 27)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 33) | (tp << (64 - 33)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 37) | (tp << (64 - 37)), b6 -= b7 + k1 + t2, b7 -= k2 + 4
+    tp := b5 ^ b4, b5 := (tp >> 19) | (tp << (64 - 19)), b4 -= b5 + k8, b5 -= k0 + t1
+    tp := b3 ^ b2, b3 := (tp >> 36) | (tp << (64 - 36)), b2 -= b3 + k6, b3 -= k7
+    tp := b1 ^ b0, b1 := (tp >> 46) | (tp << (64 - 46)), b0 -= b1 + k4, b1 -= k5
+    tp := b3 ^ b4, b3 := (tp >> 22) | (tp << (64 - 22)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 56) | (tp << (64 - 56)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 35) | (tp << (64 - 35)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 8) | (tp << (64 - 8)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 43) | (tp << (64 - 43)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 39) | (tp << (64 - 39)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 29) | (tp << (64 - 29)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 25) | (tp << (64 - 25)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 17) | (tp << (64 - 17)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 10) | (tp << (64 - 10)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 50) | (tp << (64 - 50)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 13) | (tp << (64 - 13)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 24) | (tp << (64 - 24)), b6 -= b7 + k0 + t1, b7 -= k1 + 3
+    tp := b5 ^ b4, b5 := (tp >> 34) | (tp << (64 - 34)), b4 -= b5 + k7, b5 -= k8 + t0
+    tp := b3 ^ b2, b3 := (tp >> 30) | (tp << (64 - 30)), b2 -= b3 + k5, b3 -= k6
+    tp := b1 ^ b0, b1 := (tp >> 39) | (tp << (64 - 39)), b0 -= b1 + k3, b1 -= k4
+    tp := b3 ^ b4, b3 := (tp >> 56) | (tp << (64 - 56)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 54) | (tp << (64 - 54)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 9) | (tp << (64 - 9)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 44) | (tp << (64 - 44)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 39) | (tp << (64 - 39)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 36) | (tp << (64 - 36)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 49) | (tp << (64 - 49)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 17) | (tp << (64 - 17)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 42) | (tp << (64 - 42)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 14) | (tp << (64 - 14)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 27) | (tp << (64 - 27)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 33) | (tp << (64 - 33)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 37) | (tp << (64 - 37)), b6 -= b7 + k8 + t0, b7 -= k0 + 2
+    tp := b5 ^ b4, b5 := (tp >> 19) | (tp << (64 - 19)), b4 -= b5 + k6, b5 -= k7 + t2
+    tp := b3 ^ b2, b3 := (tp >> 36) | (tp << (64 - 36)), b2 -= b3 + k4, b3 -= k5
+    tp := b1 ^ b0, b1 := (tp >> 46) | (tp << (64 - 46)), b0 -= b1 + k2, b1 -= k3
+    tp := b3 ^ b4, b3 := (tp >> 22) | (tp << (64 - 22)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 56) | (tp << (64 - 56)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 35) | (tp << (64 - 35)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 8) | (tp << (64 - 8)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 43) | (tp << (64 - 43)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 39) | (tp << (64 - 39)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 29) | (tp << (64 - 29)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 25) | (tp << (64 - 25)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 17) | (tp << (64 - 17)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 10) | (tp << (64 - 10)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 50) | (tp << (64 - 50)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 13) | (tp << (64 - 13)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 24) | (tp << (64 - 24)), b6 -= b7 + k7 + t2, b7 -= k8 + 1
+    tp := b5 ^ b4, b5 := (tp >> 34) | (tp << (64 - 34)), b4 -= b5 + k5, b5 -= k6 + t1
+    tp := b3 ^ b2, b3 := (tp >> 30) | (tp << (64 - 30)), b2 -= b3 + k3, b3 -= k4
+    tp := b1 ^ b0, b1 := (tp >> 39) | (tp << (64 - 39)), b0 -= b1 + k1, b1 -= k2
+    tp := b3 ^ b4, b3 := (tp >> 56) | (tp << (64 - 56)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 54) | (tp << (64 - 54)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 9) | (tp << (64 - 9)), b0 -= b7
+    tp := b1 ^ b6, b1 := (tp >> 44) | (tp << (64 - 44)), b6 -= b1
+    tp := b7 ^ b2, b7 := (tp >> 39) | (tp << (64 - 39)), b2 -= b7
+    tp := b5 ^ b0, b5 := (tp >> 36) | (tp << (64 - 36)), b0 -= b5
+    tp := b3 ^ b6, b3 := (tp >> 49) | (tp << (64 - 49)), b6 -= b3
+    tp := b1 ^ b4, b1 := (tp >> 17) | (tp << (64 - 17)), b4 -= b1
+    tp := b3 ^ b0, b3 := (tp >> 42) | (tp << (64 - 42)), b0 -= b3
+    tp := b5 ^ b6, b5 := (tp >> 14) | (tp << (64 - 14)), b6 -= b5
+    tp := b7 ^ b4, b7 := (tp >> 27) | (tp << (64 - 27)), b4 -= b7
+    tp := b1 ^ b2, b1 := (tp >> 33) | (tp << (64 - 33)), b2 -= b1
+    tp := b7 ^ b6, b7 := (tp >> 37) | (tp << (64 - 37)), b6 -= b7 + k6 + t1, b7 -= k7
+    tp := b5 ^ b4, b5 := (tp >> 19) | (tp << (64 - 19)), b4 -= b5 + k4, b5 -= k5 + t0
+    tp := b3 ^ b2, b3 := (tp >> 36) | (tp << (64 - 36)), b2 -= b3 + k2, b3 -= k3
+    tp := b1 ^ b0, b1 := (tp >> 46) | (tp << (64 - 46)), b0 -= b1 + k0, b1 -= k1
 
+    output:=[]
     output[0] := b0
     output[1] := b1
     output[2] := b2
@@ -1001,18 +1045,18 @@ threefishEncrypt1024(keyC,data){
     b12 := data[12], b13 := data[13]
     b14 := data[14], b15 := data[15]
 
-    k0 := keyC->key[0], k1 := keyC->key[1]
-    k2 := keyC->key[2], k3 := keyC->key[3]
-    k4 := keyC->key[4], k5 := keyC->key[5]
-    k6 := keyC->key[6], k7 := keyC->key[7]
-    k8 := keyC->key[8], k9 := keyC->key[9]
-    k10 := keyC->key[10], k11 := keyC->key[11]
-    k12 := keyC->key[12], k13 := keyC->key[13]
-    k14 := keyC->key[14], k15 := keyC->key[15]
-    k16 := keyC->key[16]
+    k0 := keyC.key[0], k1 := keyC.key[1]
+    k2 := keyC.key[2], k3 := keyC.key[3]
+    k4 := keyC.key[4], k5 := keyC.key[5]
+    k6 := keyC.key[6], k7 := keyC.key[7]
+    k8 := keyC.key[8], k9 := keyC.key[9]
+    k10 := keyC.key[10], k11 := keyC.key[11]
+    k12 := keyC.key[12], k13 := keyC.key[13]
+    k14 := keyC.key[14], k15 := keyC.key[15]
+    k16 := keyC.key[16]
 
-    t0 := keyC->tweak[0], t1 := keyC->tweak[1]
-    t2 := keyC->tweak[2]
+    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
+    t2 := keyC.tweak[2]
 
     b1 += k1, b0 += b1 + k0, b1 := ((b1 << 24) | (b1 >> (64 - 24))) ^ b0
     b3 += k3, b2 += b3 + k2, b3 := ((b3 << 13) | (b3 >> (64 - 13))) ^ b2
@@ -1655,6 +1699,7 @@ threefishEncrypt1024(keyC,data){
     b10 += b3, b3 := ((b3 << 37) | (b3 >> (64 - 37))) ^ b10
     b12 += b7, b7 := ((b7 << 20) | (b7 >> (64 - 20))) ^ b12
 
+    output:=[]
     output[0] := b0 + k3
     output[1] := b1 + k4
     output[2] := b2 + k5
@@ -1686,18 +1731,18 @@ threefishDecryption1024(keyC,data){
     b12 := data[12], b13 := data[13]
     b14 := data[14], b15 := data[15]    
 
-    k0 := keyC->key[0], k1 := keyC->key[1]
-    k2 := keyC->key[2], k3 := keyC->key[3]
-    k4 := keyC->key[4], k5 := keyC->key[5]
-    k6 := keyC->key[6], k7 := keyC->key[7]
-    k8 := keyC->key[8], k9 := keyC->key[9]
-    k10 := keyC->key[10], k11 := keyC->key[11]
-    k12 := keyC->key[12], k13 := keyC->key[13]
-    k14 := keyC->key[14], k15 := keyC->key[15]
-    k16 := keyC->key[16]
+    k0 := keyC.key[0], k1 := keyC.key[1]
+    k2 := keyC.key[2], k3 := keyC.key[3]
+    k4 := keyC.key[4], k5 := keyC.key[5]
+    k6 := keyC.key[6], k7 := keyC.key[7]
+    k8 := keyC.key[8], k9 := keyC.key[9]
+    k10 := keyC.key[10], k11 := keyC.key[11]
+    k12 := keyC.key[12], k13 := keyC.key[13]
+    k14 := keyC.key[14], k15 := keyC.key[15]
+    k16 := keyC.key[16]
 
-    t0 := keyC->tweak[0], t1 := keyC->tweak[1]
-    t2 := keyC->tweak[2]
+    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
+    t2 := keyC.tweak[2]
 
     b0 -= k3
     b1 -= k4
@@ -1715,647 +1760,648 @@ threefishDecryption1024(keyC,data){
     b13 -= k16 + t2
     b14 -= k0 + t0
     b15 -= k1 + 20
-    tmp := b7 ^ b12, b7 := (tmp >> 20) | (tmp << (64 - 20)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 37) | (tmp << (64 - 37)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 31) | (tmp << (64 - 31)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 52) | (tmp << (64 - 52)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 35) | (tmp << (64 - 35)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 48) | (tmp << (64 - 48)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 25) | (tmp << (64 - 25)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 44) | (tmp << (64 - 44)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 19) | (tmp << (64 - 19)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 46) | (tmp << (64 - 46)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 47) | (tmp << (64 - 47)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 44) | (tmp << (64 - 44)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 31) | (tmp << (64 - 31)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 41) | (tmp << (64 - 41)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 53) | (tmp << (64 - 53)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 4) | (tmp << (64 - 4)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 56) | (tmp << (64 - 56)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 34) | (tmp << (64 - 34)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 16) | (tmp << (64 - 16)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 30) | (tmp << (64 - 30)), b14 -= b15 + k16 + t2, b15 -= k0 + 19
-    tmp := b13 ^ b12, b13 := (tmp >> 44) | (tmp << (64 - 44)), b12 -= b13 + k14, b13 -= k15 + t1
-    tmp := b11 ^ b10, b11 := (tmp >> 47) | (tmp << (64 - 47)), b10 -= b11 + k12, b11 -= k13
-    tmp := b9 ^ b8, b9 := (tmp >> 12) | (tmp << (64 - 12)), b8 -= b9 + k10, b9 -= k11
-    tmp := b7 ^ b6, b7 := (tmp >> 31) | (tmp << (64 - 31)), b6 -= b7 + k8, b7 -= k9
-    tmp := b5 ^ b4, b5 := (tmp >> 37) | (tmp << (64 - 37)), b4 -= b5 + k6, b5 -= k7
-    tmp := b3 ^ b2, b3 := (tmp >> 9) | (tmp << (64 - 9)), b2 -= b3 + k4, b3 -= k5
-    tmp := b1 ^ b0, b1 := (tmp >> 41) | (tmp << (64 - 41)), b0 -= b1 + k2, b1 -= k3
-    tmp := b7 ^ b12, b7 := (tmp >> 25) | (tmp << (64 - 25)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 16) | (tmp << (64 - 16)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 28) | (tmp << (64 - 28)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 47) | (tmp << (64 - 47)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 41) | (tmp << (64 - 41)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 48) | (tmp << (64 - 48)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 20) | (tmp << (64 - 20)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 59) | (tmp << (64 - 59)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 41) | (tmp << (64 - 41)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 34) | (tmp << (64 - 34)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 13) | (tmp << (64 - 13)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 4) | (tmp << (64 - 4)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 33) | (tmp << (64 - 33)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 52) | (tmp << (64 - 52)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 18) | (tmp << (64 - 18)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 49) | (tmp << (64 - 49)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 55) | (tmp << (64 - 55)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 19) | (tmp << (64 - 19)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 38) | (tmp << (64 - 38)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 37) | (tmp << (64 - 37)), b14 -= b15 + k15 + t1, b15 -= k16 + 18
-    tmp := b13 ^ b12, b13 := (tmp >> 22) | (tmp << (64 - 22)), b12 -= b13 + k13, b13 -= k14 + t0
-    tmp := b11 ^ b10, b11 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b11 + k11, b11 -= k12
-    tmp := b9 ^ b8, b9 := (tmp >> 8) | (tmp << (64 - 8)), b8 -= b9 + k9, b9 -= k10
-    tmp := b7 ^ b6, b7 := (tmp >> 47) | (tmp << (64 - 47)), b6 -= b7 + k7, b7 -= k8
-    tmp := b5 ^ b4, b5 := (tmp >> 8) | (tmp << (64 - 8)), b4 -= b5 + k5, b5 -= k6
-    tmp := b3 ^ b2, b3 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b3 + k3, b3 -= k4
-    tmp := b1 ^ b0, b1 := (tmp >> 24) | (tmp << (64 - 24)), b0 -= b1 + k1, b1 -= k2
-    tmp := b7 ^ b12, b7 := (tmp >> 20) | (tmp << (64 - 20)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 37) | (tmp << (64 - 37)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 31) | (tmp << (64 - 31)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 52) | (tmp << (64 - 52)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 35) | (tmp << (64 - 35)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 48) | (tmp << (64 - 48)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 25) | (tmp << (64 - 25)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 44) | (tmp << (64 - 44)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 19) | (tmp << (64 - 19)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 46) | (tmp << (64 - 46)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 47) | (tmp << (64 - 47)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 44) | (tmp << (64 - 44)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 31) | (tmp << (64 - 31)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 41) | (tmp << (64 - 41)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 53) | (tmp << (64 - 53)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 4) | (tmp << (64 - 4)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 56) | (tmp << (64 - 56)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 34) | (tmp << (64 - 34)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 16) | (tmp << (64 - 16)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 30) | (tmp << (64 - 30)), b14 -= b15 + k14 + t0, b15 -= k15 + 17
-    tmp := b13 ^ b12, b13 := (tmp >> 44) | (tmp << (64 - 44)), b12 -= b13 + k12, b13 -= k13 + t2
-    tmp := b11 ^ b10, b11 := (tmp >> 47) | (tmp << (64 - 47)), b10 -= b11 + k10, b11 -= k11
-    tmp := b9 ^ b8, b9 := (tmp >> 12) | (tmp << (64 - 12)), b8 -= b9 + k8, b9 -= k9
-    tmp := b7 ^ b6, b7 := (tmp >> 31) | (tmp << (64 - 31)), b6 -= b7 + k6, b7 -= k7
-    tmp := b5 ^ b4, b5 := (tmp >> 37) | (tmp << (64 - 37)), b4 -= b5 + k4, b5 -= k5
-    tmp := b3 ^ b2, b3 := (tmp >> 9) | (tmp << (64 - 9)), b2 -= b3 + k2, b3 -= k3
-    tmp := b1 ^ b0, b1 := (tmp >> 41) | (tmp << (64 - 41)), b0 -= b1 + k0, b1 -= k1
-    tmp := b7 ^ b12, b7 := (tmp >> 25) | (tmp << (64 - 25)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 16) | (tmp << (64 - 16)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 28) | (tmp << (64 - 28)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 47) | (tmp << (64 - 47)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 41) | (tmp << (64 - 41)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 48) | (tmp << (64 - 48)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 20) | (tmp << (64 - 20)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 59) | (tmp << (64 - 59)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 41) | (tmp << (64 - 41)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 34) | (tmp << (64 - 34)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 13) | (tmp << (64 - 13)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 4) | (tmp << (64 - 4)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 33) | (tmp << (64 - 33)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 52) | (tmp << (64 - 52)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 18) | (tmp << (64 - 18)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 49) | (tmp << (64 - 49)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 55) | (tmp << (64 - 55)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 19) | (tmp << (64 - 19)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 38) | (tmp << (64 - 38)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 37) | (tmp << (64 - 37)), b14 -= b15 + k13 + t2, b15 -= k14 + 16
-    tmp := b13 ^ b12, b13 := (tmp >> 22) | (tmp << (64 - 22)), b12 -= b13 + k11, b13 -= k12 + t1
-    tmp := b11 ^ b10, b11 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b11 + k9, b11 -= k10
-    tmp := b9 ^ b8, b9 := (tmp >> 8) | (tmp << (64 - 8)), b8 -= b9 + k7, b9 -= k8
-    tmp := b7 ^ b6, b7 := (tmp >> 47) | (tmp << (64 - 47)), b6 -= b7 + k5, b7 -= k6
-    tmp := b5 ^ b4, b5 := (tmp >> 8) | (tmp << (64 - 8)), b4 -= b5 + k3, b5 -= k4
-    tmp := b3 ^ b2, b3 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b3 + k1, b3 -= k2
-    tmp := b1 ^ b0, b1 := (tmp >> 24) | (tmp << (64 - 24)), b0 -= b1 + k16, b1 -= k0
-    tmp := b7 ^ b12, b7 := (tmp >> 20) | (tmp << (64 - 20)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 37) | (tmp << (64 - 37)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 31) | (tmp << (64 - 31)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 52) | (tmp << (64 - 52)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 35) | (tmp << (64 - 35)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 48) | (tmp << (64 - 48)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 25) | (tmp << (64 - 25)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 44) | (tmp << (64 - 44)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 19) | (tmp << (64 - 19)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 46) | (tmp << (64 - 46)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 47) | (tmp << (64 - 47)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 44) | (tmp << (64 - 44)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 31) | (tmp << (64 - 31)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 41) | (tmp << (64 - 41)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 53) | (tmp << (64 - 53)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 4) | (tmp << (64 - 4)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 56) | (tmp << (64 - 56)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 34) | (tmp << (64 - 34)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 16) | (tmp << (64 - 16)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 30) | (tmp << (64 - 30)), b14 -= b15 + k12 + t1, b15 -= k13 + 15
-    tmp := b13 ^ b12, b13 := (tmp >> 44) | (tmp << (64 - 44)), b12 -= b13 + k10, b13 -= k11 + t0
-    tmp := b11 ^ b10, b11 := (tmp >> 47) | (tmp << (64 - 47)), b10 -= b11 + k8, b11 -= k9
-    tmp := b9 ^ b8, b9 := (tmp >> 12) | (tmp << (64 - 12)), b8 -= b9 + k6, b9 -= k7
-    tmp := b7 ^ b6, b7 := (tmp >> 31) | (tmp << (64 - 31)), b6 -= b7 + k4, b7 -= k5
-    tmp := b5 ^ b4, b5 := (tmp >> 37) | (tmp << (64 - 37)), b4 -= b5 + k2, b5 -= k3
-    tmp := b3 ^ b2, b3 := (tmp >> 9) | (tmp << (64 - 9)), b2 -= b3 + k0, b3 -= k1
-    tmp := b1 ^ b0, b1 := (tmp >> 41) | (tmp << (64 - 41)), b0 -= b1 + k15, b1 -= k16
-    tmp := b7 ^ b12, b7 := (tmp >> 25) | (tmp << (64 - 25)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 16) | (tmp << (64 - 16)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 28) | (tmp << (64 - 28)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 47) | (tmp << (64 - 47)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 41) | (tmp << (64 - 41)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 48) | (tmp << (64 - 48)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 20) | (tmp << (64 - 20)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 59) | (tmp << (64 - 59)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 41) | (tmp << (64 - 41)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 34) | (tmp << (64 - 34)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 13) | (tmp << (64 - 13)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 4) | (tmp << (64 - 4)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 33) | (tmp << (64 - 33)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 52) | (tmp << (64 - 52)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 18) | (tmp << (64 - 18)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 49) | (tmp << (64 - 49)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 55) | (tmp << (64 - 55)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 19) | (tmp << (64 - 19)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 38) | (tmp << (64 - 38)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 37) | (tmp << (64 - 37)), b14 -= b15 + k11 + t0, b15 -= k12 + 14
-    tmp := b13 ^ b12, b13 := (tmp >> 22) | (tmp << (64 - 22)), b12 -= b13 + k9, b13 -= k10 + t2
-    tmp := b11 ^ b10, b11 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b11 + k7, b11 -= k8
-    tmp := b9 ^ b8, b9 := (tmp >> 8) | (tmp << (64 - 8)), b8 -= b9 + k5, b9 -= k6
-    tmp := b7 ^ b6, b7 := (tmp >> 47) | (tmp << (64 - 47)), b6 -= b7 + k3, b7 -= k4
-    tmp := b5 ^ b4, b5 := (tmp >> 8) | (tmp << (64 - 8)), b4 -= b5 + k1, b5 -= k2
-    tmp := b3 ^ b2, b3 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b3 + k16, b3 -= k0
-    tmp := b1 ^ b0, b1 := (tmp >> 24) | (tmp << (64 - 24)), b0 -= b1 + k14, b1 -= k15
-    tmp := b7 ^ b12, b7 := (tmp >> 20) | (tmp << (64 - 20)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 37) | (tmp << (64 - 37)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 31) | (tmp << (64 - 31)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 52) | (tmp << (64 - 52)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 35) | (tmp << (64 - 35)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 48) | (tmp << (64 - 48)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 25) | (tmp << (64 - 25)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 44) | (tmp << (64 - 44)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 19) | (tmp << (64 - 19)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 46) | (tmp << (64 - 46)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 47) | (tmp << (64 - 47)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 44) | (tmp << (64 - 44)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 31) | (tmp << (64 - 31)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 41) | (tmp << (64 - 41)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 53) | (tmp << (64 - 53)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 4) | (tmp << (64 - 4)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 56) | (tmp << (64 - 56)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 34) | (tmp << (64 - 34)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 16) | (tmp << (64 - 16)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 30) | (tmp << (64 - 30)), b14 -= b15 + k10 + t2, b15 -= k11 + 13
-    tmp := b13 ^ b12, b13 := (tmp >> 44) | (tmp << (64 - 44)), b12 -= b13 + k8, b13 -= k9 + t1
-    tmp := b11 ^ b10, b11 := (tmp >> 47) | (tmp << (64 - 47)), b10 -= b11 + k6, b11 -= k7
-    tmp := b9 ^ b8, b9 := (tmp >> 12) | (tmp << (64 - 12)), b8 -= b9 + k4, b9 -= k5
-    tmp := b7 ^ b6, b7 := (tmp >> 31) | (tmp << (64 - 31)), b6 -= b7 + k2, b7 -= k3
-    tmp := b5 ^ b4, b5 := (tmp >> 37) | (tmp << (64 - 37)), b4 -= b5 + k0, b5 -= k1
-    tmp := b3 ^ b2, b3 := (tmp >> 9) | (tmp << (64 - 9)), b2 -= b3 + k15, b3 -= k16
-    tmp := b1 ^ b0, b1 := (tmp >> 41) | (tmp << (64 - 41)), b0 -= b1 + k13, b1 -= k14
-    tmp := b7 ^ b12, b7 := (tmp >> 25) | (tmp << (64 - 25)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 16) | (tmp << (64 - 16)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 28) | (tmp << (64 - 28)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 47) | (tmp << (64 - 47)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 41) | (tmp << (64 - 41)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 48) | (tmp << (64 - 48)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 20) | (tmp << (64 - 20)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 59) | (tmp << (64 - 59)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 41) | (tmp << (64 - 41)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 34) | (tmp << (64 - 34)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 13) | (tmp << (64 - 13)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 4) | (tmp << (64 - 4)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 33) | (tmp << (64 - 33)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 52) | (tmp << (64 - 52)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 18) | (tmp << (64 - 18)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 49) | (tmp << (64 - 49)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 55) | (tmp << (64 - 55)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 19) | (tmp << (64 - 19)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 38) | (tmp << (64 - 38)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 37) | (tmp << (64 - 37)), b14 -= b15 + k9 + t1, b15 -= k10 + 12
-    tmp := b13 ^ b12, b13 := (tmp >> 22) | (tmp << (64 - 22)), b12 -= b13 + k7, b13 -= k8 + t0
-    tmp := b11 ^ b10, b11 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b11 + k5, b11 -= k6
-    tmp := b9 ^ b8, b9 := (tmp >> 8) | (tmp << (64 - 8)), b8 -= b9 + k3, b9 -= k4
-    tmp := b7 ^ b6, b7 := (tmp >> 47) | (tmp << (64 - 47)), b6 -= b7 + k1, b7 -= k2
-    tmp := b5 ^ b4, b5 := (tmp >> 8) | (tmp << (64 - 8)), b4 -= b5 + k16, b5 -= k0
-    tmp := b3 ^ b2, b3 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b3 + k14, b3 -= k15
-    tmp := b1 ^ b0, b1 := (tmp >> 24) | (tmp << (64 - 24)), b0 -= b1 + k12, b1 -= k13
-    tmp := b7 ^ b12, b7 := (tmp >> 20) | (tmp << (64 - 20)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 37) | (tmp << (64 - 37)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 31) | (tmp << (64 - 31)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 52) | (tmp << (64 - 52)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 35) | (tmp << (64 - 35)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 48) | (tmp << (64 - 48)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 25) | (tmp << (64 - 25)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 44) | (tmp << (64 - 44)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 19) | (tmp << (64 - 19)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 46) | (tmp << (64 - 46)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 47) | (tmp << (64 - 47)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 44) | (tmp << (64 - 44)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 31) | (tmp << (64 - 31)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 41) | (tmp << (64 - 41)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 53) | (tmp << (64 - 53)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 4) | (tmp << (64 - 4)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 56) | (tmp << (64 - 56)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 34) | (tmp << (64 - 34)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 16) | (tmp << (64 - 16)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 30) | (tmp << (64 - 30)), b14 -= b15 + k8 + t0, b15 -= k9 + 11
-    tmp := b13 ^ b12, b13 := (tmp >> 44) | (tmp << (64 - 44)), b12 -= b13 + k6, b13 -= k7 + t2
-    tmp := b11 ^ b10, b11 := (tmp >> 47) | (tmp << (64 - 47)), b10 -= b11 + k4, b11 -= k5
-    tmp := b9 ^ b8, b9 := (tmp >> 12) | (tmp << (64 - 12)), b8 -= b9 + k2, b9 -= k3
-    tmp := b7 ^ b6, b7 := (tmp >> 31) | (tmp << (64 - 31)), b6 -= b7 + k0, b7 -= k1
-    tmp := b5 ^ b4, b5 := (tmp >> 37) | (tmp << (64 - 37)), b4 -= b5 + k15, b5 -= k16
-    tmp := b3 ^ b2, b3 := (tmp >> 9) | (tmp << (64 - 9)), b2 -= b3 + k13, b3 -= k14
-    tmp := b1 ^ b0, b1 := (tmp >> 41) | (tmp << (64 - 41)), b0 -= b1 + k11, b1 -= k12
-    tmp := b7 ^ b12, b7 := (tmp >> 25) | (tmp << (64 - 25)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 16) | (tmp << (64 - 16)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 28) | (tmp << (64 - 28)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 47) | (tmp << (64 - 47)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 41) | (tmp << (64 - 41)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 48) | (tmp << (64 - 48)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 20) | (tmp << (64 - 20)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 59) | (tmp << (64 - 59)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 41) | (tmp << (64 - 41)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 34) | (tmp << (64 - 34)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 13) | (tmp << (64 - 13)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 4) | (tmp << (64 - 4)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 33) | (tmp << (64 - 33)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 52) | (tmp << (64 - 52)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 18) | (tmp << (64 - 18)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 49) | (tmp << (64 - 49)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 55) | (tmp << (64 - 55)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 19) | (tmp << (64 - 19)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 38) | (tmp << (64 - 38)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 37) | (tmp << (64 - 37)), b14 -= b15 + k7 + t2, b15 -= k8 + 10
-    tmp := b13 ^ b12, b13 := (tmp >> 22) | (tmp << (64 - 22)), b12 -= b13 + k5, b13 -= k6 + t1
-    tmp := b11 ^ b10, b11 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b11 + k3, b11 -= k4
-    tmp := b9 ^ b8, b9 := (tmp >> 8) | (tmp << (64 - 8)), b8 -= b9 + k1, b9 -= k2
-    tmp := b7 ^ b6, b7 := (tmp >> 47) | (tmp << (64 - 47)), b6 -= b7 + k16, b7 -= k0
-    tmp := b5 ^ b4, b5 := (tmp >> 8) | (tmp << (64 - 8)), b4 -= b5 + k14, b5 -= k15
-    tmp := b3 ^ b2, b3 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b3 + k12, b3 -= k13
-    tmp := b1 ^ b0, b1 := (tmp >> 24) | (tmp << (64 - 24)), b0 -= b1 + k10, b1 -= k11
-    tmp := b7 ^ b12, b7 := (tmp >> 20) | (tmp << (64 - 20)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 37) | (tmp << (64 - 37)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 31) | (tmp << (64 - 31)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 52) | (tmp << (64 - 52)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 35) | (tmp << (64 - 35)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 48) | (tmp << (64 - 48)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 25) | (tmp << (64 - 25)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 44) | (tmp << (64 - 44)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 19) | (tmp << (64 - 19)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 46) | (tmp << (64 - 46)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 47) | (tmp << (64 - 47)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 44) | (tmp << (64 - 44)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 31) | (tmp << (64 - 31)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 41) | (tmp << (64 - 41)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 53) | (tmp << (64 - 53)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 4) | (tmp << (64 - 4)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 56) | (tmp << (64 - 56)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 34) | (tmp << (64 - 34)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 16) | (tmp << (64 - 16)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 30) | (tmp << (64 - 30)), b14 -= b15 + k6 + t1, b15 -= k7 + 9
-    tmp := b13 ^ b12, b13 := (tmp >> 44) | (tmp << (64 - 44)), b12 -= b13 + k4, b13 -= k5 + t0
-    tmp := b11 ^ b10, b11 := (tmp >> 47) | (tmp << (64 - 47)), b10 -= b11 + k2, b11 -= k3
-    tmp := b9 ^ b8, b9 := (tmp >> 12) | (tmp << (64 - 12)), b8 -= b9 + k0, b9 -= k1
-    tmp := b7 ^ b6, b7 := (tmp >> 31) | (tmp << (64 - 31)), b6 -= b7 + k15, b7 -= k16
-    tmp := b5 ^ b4, b5 := (tmp >> 37) | (tmp << (64 - 37)), b4 -= b5 + k13, b5 -= k14
-    tmp := b3 ^ b2, b3 := (tmp >> 9) | (tmp << (64 - 9)), b2 -= b3 + k11, b3 -= k12
-    tmp := b1 ^ b0, b1 := (tmp >> 41) | (tmp << (64 - 41)), b0 -= b1 + k9, b1 -= k10
-    tmp := b7 ^ b12, b7 := (tmp >> 25) | (tmp << (64 - 25)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 16) | (tmp << (64 - 16)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 28) | (tmp << (64 - 28)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 47) | (tmp << (64 - 47)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 41) | (tmp << (64 - 41)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 48) | (tmp << (64 - 48)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 20) | (tmp << (64 - 20)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 59) | (tmp << (64 - 59)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 41) | (tmp << (64 - 41)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 34) | (tmp << (64 - 34)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 13) | (tmp << (64 - 13)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 4) | (tmp << (64 - 4)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 33) | (tmp << (64 - 33)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 52) | (tmp << (64 - 52)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 18) | (tmp << (64 - 18)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 49) | (tmp << (64 - 49)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 55) | (tmp << (64 - 55)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 19) | (tmp << (64 - 19)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 38) | (tmp << (64 - 38)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 37) | (tmp << (64 - 37)), b14 -= b15 + k5 + t0, b15 -= k6 + 8
-    tmp := b13 ^ b12, b13 := (tmp >> 22) | (tmp << (64 - 22)), b12 -= b13 + k3, b13 -= k4 + t2
-    tmp := b11 ^ b10, b11 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b11 + k1, b11 -= k2
-    tmp := b9 ^ b8, b9 := (tmp >> 8) | (tmp << (64 - 8)), b8 -= b9 + k16, b9 -= k0
-    tmp := b7 ^ b6, b7 := (tmp >> 47) | (tmp << (64 - 47)), b6 -= b7 + k14, b7 -= k15
-    tmp := b5 ^ b4, b5 := (tmp >> 8) | (tmp << (64 - 8)), b4 -= b5 + k12, b5 -= k13
-    tmp := b3 ^ b2, b3 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b3 + k10, b3 -= k11
-    tmp := b1 ^ b0, b1 := (tmp >> 24) | (tmp << (64 - 24)), b0 -= b1 + k8, b1 -= k9
-    tmp := b7 ^ b12, b7 := (tmp >> 20) | (tmp << (64 - 20)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 37) | (tmp << (64 - 37)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 31) | (tmp << (64 - 31)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 52) | (tmp << (64 - 52)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 35) | (tmp << (64 - 35)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 48) | (tmp << (64 - 48)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 25) | (tmp << (64 - 25)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 44) | (tmp << (64 - 44)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 19) | (tmp << (64 - 19)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 46) | (tmp << (64 - 46)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 47) | (tmp << (64 - 47)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 44) | (tmp << (64 - 44)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 31) | (tmp << (64 - 31)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 41) | (tmp << (64 - 41)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 53) | (tmp << (64 - 53)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 4) | (tmp << (64 - 4)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 56) | (tmp << (64 - 56)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 34) | (tmp << (64 - 34)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 16) | (tmp << (64 - 16)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 30) | (tmp << (64 - 30)), b14 -= b15 + k4 + t2, b15 -= k5 + 7
-    tmp := b13 ^ b12, b13 := (tmp >> 44) | (tmp << (64 - 44)), b12 -= b13 + k2, b13 -= k3 + t1
-    tmp := b11 ^ b10, b11 := (tmp >> 47) | (tmp << (64 - 47)), b10 -= b11 + k0, b11 -= k1
-    tmp := b9 ^ b8, b9 := (tmp >> 12) | (tmp << (64 - 12)), b8 -= b9 + k15, b9 -= k16
-    tmp := b7 ^ b6, b7 := (tmp >> 31) | (tmp << (64 - 31)), b6 -= b7 + k13, b7 -= k14
-    tmp := b5 ^ b4, b5 := (tmp >> 37) | (tmp << (64 - 37)), b4 -= b5 + k11, b5 -= k12
-    tmp := b3 ^ b2, b3 := (tmp >> 9) | (tmp << (64 - 9)), b2 -= b3 + k9, b3 -= k10
-    tmp := b1 ^ b0, b1 := (tmp >> 41) | (tmp << (64 - 41)), b0 -= b1 + k7, b1 -= k8
-    tmp := b7 ^ b12, b7 := (tmp >> 25) | (tmp << (64 - 25)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 16) | (tmp << (64 - 16)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 28) | (tmp << (64 - 28)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 47) | (tmp << (64 - 47)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 41) | (tmp << (64 - 41)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 48) | (tmp << (64 - 48)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 20) | (tmp << (64 - 20)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 59) | (tmp << (64 - 59)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 41) | (tmp << (64 - 41)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 34) | (tmp << (64 - 34)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 13) | (tmp << (64 - 13)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 4) | (tmp << (64 - 4)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 33) | (tmp << (64 - 33)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 52) | (tmp << (64 - 52)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 18) | (tmp << (64 - 18)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 49) | (tmp << (64 - 49)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 55) | (tmp << (64 - 55)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 19) | (tmp << (64 - 19)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 38) | (tmp << (64 - 38)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 37) | (tmp << (64 - 37)), b14 -= b15 + k3 + t1, b15 -= k4 + 6
-    tmp := b13 ^ b12, b13 := (tmp >> 22) | (tmp << (64 - 22)), b12 -= b13 + k1, b13 -= k2 + t0
-    tmp := b11 ^ b10, b11 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b11 + k16, b11 -= k0
-    tmp := b9 ^ b8, b9 := (tmp >> 8) | (tmp << (64 - 8)), b8 -= b9 + k14, b9 -= k15
-    tmp := b7 ^ b6, b7 := (tmp >> 47) | (tmp << (64 - 47)), b6 -= b7 + k12, b7 -= k13
-    tmp := b5 ^ b4, b5 := (tmp >> 8) | (tmp << (64 - 8)), b4 -= b5 + k10, b5 -= k11
-    tmp := b3 ^ b2, b3 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b3 + k8, b3 -= k9
-    tmp := b1 ^ b0, b1 := (tmp >> 24) | (tmp << (64 - 24)), b0 -= b1 + k6, b1 -= k7
-    tmp := b7 ^ b12, b7 := (tmp >> 20) | (tmp << (64 - 20)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 37) | (tmp << (64 - 37)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 31) | (tmp << (64 - 31)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 52) | (tmp << (64 - 52)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 35) | (tmp << (64 - 35)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 48) | (tmp << (64 - 48)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 25) | (tmp << (64 - 25)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 44) | (tmp << (64 - 44)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 19) | (tmp << (64 - 19)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 46) | (tmp << (64 - 46)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 47) | (tmp << (64 - 47)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 44) | (tmp << (64 - 44)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 31) | (tmp << (64 - 31)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 41) | (tmp << (64 - 41)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 53) | (tmp << (64 - 53)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 4) | (tmp << (64 - 4)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 56) | (tmp << (64 - 56)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 34) | (tmp << (64 - 34)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 16) | (tmp << (64 - 16)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 30) | (tmp << (64 - 30)), b14 -= b15 + k2 + t0, b15 -= k3 + 5
-    tmp := b13 ^ b12, b13 := (tmp >> 44) | (tmp << (64 - 44)), b12 -= b13 + k0, b13 -= k1 + t2
-    tmp := b11 ^ b10, b11 := (tmp >> 47) | (tmp << (64 - 47)), b10 -= b11 + k15, b11 -= k16
-    tmp := b9 ^ b8, b9 := (tmp >> 12) | (tmp << (64 - 12)), b8 -= b9 + k13, b9 -= k14
-    tmp := b7 ^ b6, b7 := (tmp >> 31) | (tmp << (64 - 31)), b6 -= b7 + k11, b7 -= k12
-    tmp := b5 ^ b4, b5 := (tmp >> 37) | (tmp << (64 - 37)), b4 -= b5 + k9, b5 -= k10
-    tmp := b3 ^ b2, b3 := (tmp >> 9) | (tmp << (64 - 9)), b2 -= b3 + k7, b3 -= k8
-    tmp := b1 ^ b0, b1 := (tmp >> 41) | (tmp << (64 - 41)), b0 -= b1 + k5, b1 -= k6
-    tmp := b7 ^ b12, b7 := (tmp >> 25) | (tmp << (64 - 25)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 16) | (tmp << (64 - 16)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 28) | (tmp << (64 - 28)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 47) | (tmp << (64 - 47)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 41) | (tmp << (64 - 41)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 48) | (tmp << (64 - 48)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 20) | (tmp << (64 - 20)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 59) | (tmp << (64 - 59)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 41) | (tmp << (64 - 41)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 34) | (tmp << (64 - 34)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 13) | (tmp << (64 - 13)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 4) | (tmp << (64 - 4)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 33) | (tmp << (64 - 33)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 52) | (tmp << (64 - 52)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 18) | (tmp << (64 - 18)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 49) | (tmp << (64 - 49)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 55) | (tmp << (64 - 55)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 19) | (tmp << (64 - 19)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 38) | (tmp << (64 - 38)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 37) | (tmp << (64 - 37)), b14 -= b15 + k1 + t2, b15 -= k2 + 4
-    tmp := b13 ^ b12, b13 := (tmp >> 22) | (tmp << (64 - 22)), b12 -= b13 + k16, b13 -= k0 + t1
-    tmp := b11 ^ b10, b11 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b11 + k14, b11 -= k15
-    tmp := b9 ^ b8, b9 := (tmp >> 8) | (tmp << (64 - 8)), b8 -= b9 + k12, b9 -= k13
-    tmp := b7 ^ b6, b7 := (tmp >> 47) | (tmp << (64 - 47)), b6 -= b7 + k10, b7 -= k11
-    tmp := b5 ^ b4, b5 := (tmp >> 8) | (tmp << (64 - 8)), b4 -= b5 + k8, b5 -= k9
-    tmp := b3 ^ b2, b3 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b3 + k6, b3 -= k7
-    tmp := b1 ^ b0, b1 := (tmp >> 24) | (tmp << (64 - 24)), b0 -= b1 + k4, b1 -= k5
-    tmp := b7 ^ b12, b7 := (tmp >> 20) | (tmp << (64 - 20)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 37) | (tmp << (64 - 37)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 31) | (tmp << (64 - 31)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 52) | (tmp << (64 - 52)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 35) | (tmp << (64 - 35)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 48) | (tmp << (64 - 48)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 25) | (tmp << (64 - 25)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 44) | (tmp << (64 - 44)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 19) | (tmp << (64 - 19)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 46) | (tmp << (64 - 46)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 47) | (tmp << (64 - 47)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 44) | (tmp << (64 - 44)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 31) | (tmp << (64 - 31)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 41) | (tmp << (64 - 41)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 53) | (tmp << (64 - 53)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 4) | (tmp << (64 - 4)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 56) | (tmp << (64 - 56)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 34) | (tmp << (64 - 34)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 16) | (tmp << (64 - 16)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 30) | (tmp << (64 - 30)), b14 -= b15 + k0 + t1, b15 -= k1 + 3
-    tmp := b13 ^ b12, b13 := (tmp >> 44) | (tmp << (64 - 44)), b12 -= b13 + k15, b13 -= k16 + t0
-    tmp := b11 ^ b10, b11 := (tmp >> 47) | (tmp << (64 - 47)), b10 -= b11 + k13, b11 -= k14
-    tmp := b9 ^ b8, b9 := (tmp >> 12) | (tmp << (64 - 12)), b8 -= b9 + k11, b9 -= k12
-    tmp := b7 ^ b6, b7 := (tmp >> 31) | (tmp << (64 - 31)), b6 -= b7 + k9, b7 -= k10
-    tmp := b5 ^ b4, b5 := (tmp >> 37) | (tmp << (64 - 37)), b4 -= b5 + k7, b5 -= k8
-    tmp := b3 ^ b2, b3 := (tmp >> 9) | (tmp << (64 - 9)), b2 -= b3 + k5, b3 -= k6
-    tmp := b1 ^ b0, b1 := (tmp >> 41) | (tmp << (64 - 41)), b0 -= b1 + k3, b1 -= k4
-    tmp := b7 ^ b12, b7 := (tmp >> 25) | (tmp << (64 - 25)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 16) | (tmp << (64 - 16)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 28) | (tmp << (64 - 28)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 47) | (tmp << (64 - 47)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 41) | (tmp << (64 - 41)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 48) | (tmp << (64 - 48)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 20) | (tmp << (64 - 20)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 59) | (tmp << (64 - 59)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 41) | (tmp << (64 - 41)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 34) | (tmp << (64 - 34)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 13) | (tmp << (64 - 13)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 4) | (tmp << (64 - 4)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 33) | (tmp << (64 - 33)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 52) | (tmp << (64 - 52)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 18) | (tmp << (64 - 18)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 49) | (tmp << (64 - 49)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 55) | (tmp << (64 - 55)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 19) | (tmp << (64 - 19)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 38) | (tmp << (64 - 38)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 37) | (tmp << (64 - 37)), b14 -= b15 + k16 + t0, b15 -= k0 + 2
-    tmp := b13 ^ b12, b13 := (tmp >> 22) | (tmp << (64 - 22)), b12 -= b13 + k14, b13 -= k15 + t2
-    tmp := b11 ^ b10, b11 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b11 + k12, b11 -= k13
-    tmp := b9 ^ b8, b9 := (tmp >> 8) | (tmp << (64 - 8)), b8 -= b9 + k10, b9 -= k11
-    tmp := b7 ^ b6, b7 := (tmp >> 47) | (tmp << (64 - 47)), b6 -= b7 + k8, b7 -= k9
-    tmp := b5 ^ b4, b5 := (tmp >> 8) | (tmp << (64 - 8)), b4 -= b5 + k6, b5 -= k7
-    tmp := b3 ^ b2, b3 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b3 + k4, b3 -= k5
-    tmp := b1 ^ b0, b1 := (tmp >> 24) | (tmp << (64 - 24)), b0 -= b1 + k2, b1 -= k3
-    tmp := b7 ^ b12, b7 := (tmp >> 20) | (tmp << (64 - 20)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 37) | (tmp << (64 - 37)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 31) | (tmp << (64 - 31)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 52) | (tmp << (64 - 52)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 35) | (tmp << (64 - 35)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 48) | (tmp << (64 - 48)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 9) | (tmp << (64 - 9)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 25) | (tmp << (64 - 25)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 44) | (tmp << (64 - 44)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 19) | (tmp << (64 - 19)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 46) | (tmp << (64 - 46)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 47) | (tmp << (64 - 47)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 44) | (tmp << (64 - 44)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 31) | (tmp << (64 - 31)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 41) | (tmp << (64 - 41)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 42) | (tmp << (64 - 42)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 53) | (tmp << (64 - 53)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 4) | (tmp << (64 - 4)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 56) | (tmp << (64 - 56)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 34) | (tmp << (64 - 34)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 16) | (tmp << (64 - 16)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 30) | (tmp << (64 - 30)), b14 -= b15 + k15 + t2, b15 -= k16 + 1
-    tmp := b13 ^ b12, b13 := (tmp >> 44) | (tmp << (64 - 44)), b12 -= b13 + k13, b13 -= k14 + t1
-    tmp := b11 ^ b10, b11 := (tmp >> 47) | (tmp << (64 - 47)), b10 -= b11 + k11, b11 -= k12
-    tmp := b9 ^ b8, b9 := (tmp >> 12) | (tmp << (64 - 12)), b8 -= b9 + k9, b9 -= k10
-    tmp := b7 ^ b6, b7 := (tmp >> 31) | (tmp << (64 - 31)), b6 -= b7 + k7, b7 -= k8
-    tmp := b5 ^ b4, b5 := (tmp >> 37) | (tmp << (64 - 37)), b4 -= b5 + k5, b5 -= k6
-    tmp := b3 ^ b2, b3 := (tmp >> 9) | (tmp << (64 - 9)), b2 -= b3 + k3, b3 -= k4
-    tmp := b1 ^ b0, b1 := (tmp >> 41) | (tmp << (64 - 41)), b0 -= b1 + k1, b1 -= k2
-    tmp := b7 ^ b12, b7 := (tmp >> 25) | (tmp << (64 - 25)), b12 -= b7
-    tmp := b3 ^ b10, b3 := (tmp >> 16) | (tmp << (64 - 16)), b10 -= b3
-    tmp := b5 ^ b8, b5 := (tmp >> 28) | (tmp << (64 - 28)), b8 -= b5
-    tmp := b1 ^ b14, b1 := (tmp >> 47) | (tmp << (64 - 47)), b14 -= b1
-    tmp := b9 ^ b4, b9 := (tmp >> 41) | (tmp << (64 - 41)), b4 -= b9
-    tmp := b13 ^ b6, b13 := (tmp >> 48) | (tmp << (64 - 48)), b6 -= b13
-    tmp := b11 ^ b2, b11 := (tmp >> 20) | (tmp << (64 - 20)), b2 -= b11
-    tmp := b15 ^ b0, b15 := (tmp >> 5) | (tmp << (64 - 5)), b0 -= b15
-    tmp := b9 ^ b10, b9 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b9
-    tmp := b11 ^ b8, b11 := (tmp >> 59) | (tmp << (64 - 59)), b8 -= b11
-    tmp := b13 ^ b14, b13 := (tmp >> 41) | (tmp << (64 - 41)), b14 -= b13
-    tmp := b15 ^ b12, b15 := (tmp >> 34) | (tmp << (64 - 34)), b12 -= b15
-    tmp := b1 ^ b6, b1 := (tmp >> 13) | (tmp << (64 - 13)), b6 -= b1
-    tmp := b3 ^ b4, b3 := (tmp >> 51) | (tmp << (64 - 51)), b4 -= b3
-    tmp := b5 ^ b2, b5 := (tmp >> 4) | (tmp << (64 - 4)), b2 -= b5
-    tmp := b7 ^ b0, b7 := (tmp >> 33) | (tmp << (64 - 33)), b0 -= b7
-    tmp := b1 ^ b8, b1 := (tmp >> 52) | (tmp << (64 - 52)), b8 -= b1
-    tmp := b5 ^ b14, b5 := (tmp >> 23) | (tmp << (64 - 23)), b14 -= b5
-    tmp := b3 ^ b12, b3 := (tmp >> 18) | (tmp << (64 - 18)), b12 -= b3
-    tmp := b7 ^ b10, b7 := (tmp >> 49) | (tmp << (64 - 49)), b10 -= b7
-    tmp := b15 ^ b4, b15 := (tmp >> 55) | (tmp << (64 - 55)), b4 -= b15
-    tmp := b11 ^ b6, b11 := (tmp >> 10) | (tmp << (64 - 10)), b6 -= b11
-    tmp := b13 ^ b2, b13 := (tmp >> 19) | (tmp << (64 - 19)), b2 -= b13
-    tmp := b9 ^ b0, b9 := (tmp >> 38) | (tmp << (64 - 38)), b0 -= b9
-    tmp := b15 ^ b14, b15 := (tmp >> 37) | (tmp << (64 - 37)), b14 -= b15 + k14 + t1, b15 -= k15
-    tmp := b13 ^ b12, b13 := (tmp >> 22) | (tmp << (64 - 22)), b12 -= b13 + k12, b13 -= k13 + t0
-    tmp := b11 ^ b10, b11 := (tmp >> 17) | (tmp << (64 - 17)), b10 -= b11 + k10, b11 -= k11
-    tmp := b9 ^ b8, b9 := (tmp >> 8) | (tmp << (64 - 8)), b8 -= b9 + k8, b9 -= k9
-    tmp := b7 ^ b6, b7 := (tmp >> 47) | (tmp << (64 - 47)), b6 -= b7 + k6, b7 -= k7
-    tmp := b5 ^ b4, b5 := (tmp >> 8) | (tmp << (64 - 8)), b4 -= b5 + k4, b5 -= k5
-    tmp := b3 ^ b2, b3 := (tmp >> 13) | (tmp << (64 - 13)), b2 -= b3 + k2, b3 -= k3
-    tmp := b1 ^ b0, b1 := (tmp >> 24) | (tmp << (64 - 24)), b0 -= b1 + k0, b1 -= k1
+    tp := b7 ^ b12, b7 := (tp >> 20) | (tp << (64 - 20)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 37) | (tp << (64 - 37)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 31) | (tp << (64 - 31)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 23) | (tp << (64 - 23)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 52) | (tp << (64 - 52)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 35) | (tp << (64 - 35)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 48) | (tp << (64 - 48)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 9) | (tp << (64 - 9)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 25) | (tp << (64 - 25)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 44) | (tp << (64 - 44)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 42) | (tp << (64 - 42)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 19) | (tp << (64 - 19)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 46) | (tp << (64 - 46)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 47) | (tp << (64 - 47)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 44) | (tp << (64 - 44)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 31) | (tp << (64 - 31)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 41) | (tp << (64 - 41)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 42) | (tp << (64 - 42)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 53) | (tp << (64 - 53)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 4) | (tp << (64 - 4)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 51) | (tp << (64 - 51)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 56) | (tp << (64 - 56)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 34) | (tp << (64 - 34)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 16) | (tp << (64 - 16)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 30) | (tp << (64 - 30)), b14 -= b15 + k16 + t2, b15 -= k0 + 19
+    tp := b13 ^ b12, b13 := (tp >> 44) | (tp << (64 - 44)), b12 -= b13 + k14, b13 -= k15 + t1
+    tp := b11 ^ b10, b11 := (tp >> 47) | (tp << (64 - 47)), b10 -= b11 + k12, b11 -= k13
+    tp := b9 ^ b8, b9 := (tp >> 12) | (tp << (64 - 12)), b8 -= b9 + k10, b9 -= k11
+    tp := b7 ^ b6, b7 := (tp >> 31) | (tp << (64 - 31)), b6 -= b7 + k8, b7 -= k9
+    tp := b5 ^ b4, b5 := (tp >> 37) | (tp << (64 - 37)), b4 -= b5 + k6, b5 -= k7
+    tp := b3 ^ b2, b3 := (tp >> 9) | (tp << (64 - 9)), b2 -= b3 + k4, b3 -= k5
+    tp := b1 ^ b0, b1 := (tp >> 41) | (tp << (64 - 41)), b0 -= b1 + k2, b1 -= k3
+    tp := b7 ^ b12, b7 := (tp >> 25) | (tp << (64 - 25)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 16) | (tp << (64 - 16)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 28) | (tp << (64 - 28)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 47) | (tp << (64 - 47)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 41) | (tp << (64 - 41)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 48) | (tp << (64 - 48)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 20) | (tp << (64 - 20)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 5) | (tp << (64 - 5)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 17) | (tp << (64 - 17)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 59) | (tp << (64 - 59)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 41) | (tp << (64 - 41)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 34) | (tp << (64 - 34)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 13) | (tp << (64 - 13)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 51) | (tp << (64 - 51)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 4) | (tp << (64 - 4)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 33) | (tp << (64 - 33)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 52) | (tp << (64 - 52)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 23) | (tp << (64 - 23)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 18) | (tp << (64 - 18)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 49) | (tp << (64 - 49)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 55) | (tp << (64 - 55)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 10) | (tp << (64 - 10)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 19) | (tp << (64 - 19)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 38) | (tp << (64 - 38)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 37) | (tp << (64 - 37)), b14 -= b15 + k15 + t1, b15 -= k16 + 18
+    tp := b13 ^ b12, b13 := (tp >> 22) | (tp << (64 - 22)), b12 -= b13 + k13, b13 -= k14 + t0
+    tp := b11 ^ b10, b11 := (tp >> 17) | (tp << (64 - 17)), b10 -= b11 + k11, b11 -= k12
+    tp := b9 ^ b8, b9 := (tp >> 8) | (tp << (64 - 8)), b8 -= b9 + k9, b9 -= k10
+    tp := b7 ^ b6, b7 := (tp >> 47) | (tp << (64 - 47)), b6 -= b7 + k7, b7 -= k8
+    tp := b5 ^ b4, b5 := (tp >> 8) | (tp << (64 - 8)), b4 -= b5 + k5, b5 -= k6
+    tp := b3 ^ b2, b3 := (tp >> 13) | (tp << (64 - 13)), b2 -= b3 + k3, b3 -= k4
+    tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k1, b1 -= k2
+    tp := b7 ^ b12, b7 := (tp >> 20) | (tp << (64 - 20)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 37) | (tp << (64 - 37)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 31) | (tp << (64 - 31)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 23) | (tp << (64 - 23)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 52) | (tp << (64 - 52)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 35) | (tp << (64 - 35)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 48) | (tp << (64 - 48)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 9) | (tp << (64 - 9)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 25) | (tp << (64 - 25)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 44) | (tp << (64 - 44)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 42) | (tp << (64 - 42)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 19) | (tp << (64 - 19)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 46) | (tp << (64 - 46)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 47) | (tp << (64 - 47)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 44) | (tp << (64 - 44)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 31) | (tp << (64 - 31)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 41) | (tp << (64 - 41)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 42) | (tp << (64 - 42)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 53) | (tp << (64 - 53)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 4) | (tp << (64 - 4)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 51) | (tp << (64 - 51)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 56) | (tp << (64 - 56)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 34) | (tp << (64 - 34)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 16) | (tp << (64 - 16)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 30) | (tp << (64 - 30)), b14 -= b15 + k14 + t0, b15 -= k15 + 17
+    tp := b13 ^ b12, b13 := (tp >> 44) | (tp << (64 - 44)), b12 -= b13 + k12, b13 -= k13 + t2
+    tp := b11 ^ b10, b11 := (tp >> 47) | (tp << (64 - 47)), b10 -= b11 + k10, b11 -= k11
+    tp := b9 ^ b8, b9 := (tp >> 12) | (tp << (64 - 12)), b8 -= b9 + k8, b9 -= k9
+    tp := b7 ^ b6, b7 := (tp >> 31) | (tp << (64 - 31)), b6 -= b7 + k6, b7 -= k7
+    tp := b5 ^ b4, b5 := (tp >> 37) | (tp << (64 - 37)), b4 -= b5 + k4, b5 -= k5
+    tp := b3 ^ b2, b3 := (tp >> 9) | (tp << (64 - 9)), b2 -= b3 + k2, b3 -= k3
+    tp := b1 ^ b0, b1 := (tp >> 41) | (tp << (64 - 41)), b0 -= b1 + k0, b1 -= k1
+    tp := b7 ^ b12, b7 := (tp >> 25) | (tp << (64 - 25)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 16) | (tp << (64 - 16)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 28) | (tp << (64 - 28)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 47) | (tp << (64 - 47)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 41) | (tp << (64 - 41)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 48) | (tp << (64 - 48)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 20) | (tp << (64 - 20)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 5) | (tp << (64 - 5)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 17) | (tp << (64 - 17)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 59) | (tp << (64 - 59)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 41) | (tp << (64 - 41)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 34) | (tp << (64 - 34)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 13) | (tp << (64 - 13)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 51) | (tp << (64 - 51)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 4) | (tp << (64 - 4)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 33) | (tp << (64 - 33)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 52) | (tp << (64 - 52)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 23) | (tp << (64 - 23)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 18) | (tp << (64 - 18)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 49) | (tp << (64 - 49)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 55) | (tp << (64 - 55)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 10) | (tp << (64 - 10)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 19) | (tp << (64 - 19)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 38) | (tp << (64 - 38)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 37) | (tp << (64 - 37)), b14 -= b15 + k13 + t2, b15 -= k14 + 16
+    tp := b13 ^ b12, b13 := (tp >> 22) | (tp << (64 - 22)), b12 -= b13 + k11, b13 -= k12 + t1
+    tp := b11 ^ b10, b11 := (tp >> 17) | (tp << (64 - 17)), b10 -= b11 + k9, b11 -= k10
+    tp := b9 ^ b8, b9 := (tp >> 8) | (tp << (64 - 8)), b8 -= b9 + k7, b9 -= k8
+    tp := b7 ^ b6, b7 := (tp >> 47) | (tp << (64 - 47)), b6 -= b7 + k5, b7 -= k6
+    tp := b5 ^ b4, b5 := (tp >> 8) | (tp << (64 - 8)), b4 -= b5 + k3, b5 -= k4
+    tp := b3 ^ b2, b3 := (tp >> 13) | (tp << (64 - 13)), b2 -= b3 + k1, b3 -= k2
+    tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k16, b1 -= k0
+    tp := b7 ^ b12, b7 := (tp >> 20) | (tp << (64 - 20)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 37) | (tp << (64 - 37)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 31) | (tp << (64 - 31)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 23) | (tp << (64 - 23)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 52) | (tp << (64 - 52)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 35) | (tp << (64 - 35)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 48) | (tp << (64 - 48)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 9) | (tp << (64 - 9)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 25) | (tp << (64 - 25)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 44) | (tp << (64 - 44)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 42) | (tp << (64 - 42)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 19) | (tp << (64 - 19)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 46) | (tp << (64 - 46)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 47) | (tp << (64 - 47)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 44) | (tp << (64 - 44)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 31) | (tp << (64 - 31)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 41) | (tp << (64 - 41)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 42) | (tp << (64 - 42)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 53) | (tp << (64 - 53)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 4) | (tp << (64 - 4)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 51) | (tp << (64 - 51)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 56) | (tp << (64 - 56)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 34) | (tp << (64 - 34)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 16) | (tp << (64 - 16)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 30) | (tp << (64 - 30)), b14 -= b15 + k12 + t1, b15 -= k13 + 15
+    tp := b13 ^ b12, b13 := (tp >> 44) | (tp << (64 - 44)), b12 -= b13 + k10, b13 -= k11 + t0
+    tp := b11 ^ b10, b11 := (tp >> 47) | (tp << (64 - 47)), b10 -= b11 + k8, b11 -= k9
+    tp := b9 ^ b8, b9 := (tp >> 12) | (tp << (64 - 12)), b8 -= b9 + k6, b9 -= k7
+    tp := b7 ^ b6, b7 := (tp >> 31) | (tp << (64 - 31)), b6 -= b7 + k4, b7 -= k5
+    tp := b5 ^ b4, b5 := (tp >> 37) | (tp << (64 - 37)), b4 -= b5 + k2, b5 -= k3
+    tp := b3 ^ b2, b3 := (tp >> 9) | (tp << (64 - 9)), b2 -= b3 + k0, b3 -= k1
+    tp := b1 ^ b0, b1 := (tp >> 41) | (tp << (64 - 41)), b0 -= b1 + k15, b1 -= k16
+    tp := b7 ^ b12, b7 := (tp >> 25) | (tp << (64 - 25)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 16) | (tp << (64 - 16)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 28) | (tp << (64 - 28)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 47) | (tp << (64 - 47)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 41) | (tp << (64 - 41)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 48) | (tp << (64 - 48)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 20) | (tp << (64 - 20)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 5) | (tp << (64 - 5)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 17) | (tp << (64 - 17)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 59) | (tp << (64 - 59)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 41) | (tp << (64 - 41)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 34) | (tp << (64 - 34)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 13) | (tp << (64 - 13)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 51) | (tp << (64 - 51)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 4) | (tp << (64 - 4)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 33) | (tp << (64 - 33)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 52) | (tp << (64 - 52)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 23) | (tp << (64 - 23)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 18) | (tp << (64 - 18)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 49) | (tp << (64 - 49)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 55) | (tp << (64 - 55)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 10) | (tp << (64 - 10)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 19) | (tp << (64 - 19)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 38) | (tp << (64 - 38)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 37) | (tp << (64 - 37)), b14 -= b15 + k11 + t0, b15 -= k12 + 14
+    tp := b13 ^ b12, b13 := (tp >> 22) | (tp << (64 - 22)), b12 -= b13 + k9, b13 -= k10 + t2
+    tp := b11 ^ b10, b11 := (tp >> 17) | (tp << (64 - 17)), b10 -= b11 + k7, b11 -= k8
+    tp := b9 ^ b8, b9 := (tp >> 8) | (tp << (64 - 8)), b8 -= b9 + k5, b9 -= k6
+    tp := b7 ^ b6, b7 := (tp >> 47) | (tp << (64 - 47)), b6 -= b7 + k3, b7 -= k4
+    tp := b5 ^ b4, b5 := (tp >> 8) | (tp << (64 - 8)), b4 -= b5 + k1, b5 -= k2
+    tp := b3 ^ b2, b3 := (tp >> 13) | (tp << (64 - 13)), b2 -= b3 + k16, b3 -= k0
+    tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k14, b1 -= k15
+    tp := b7 ^ b12, b7 := (tp >> 20) | (tp << (64 - 20)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 37) | (tp << (64 - 37)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 31) | (tp << (64 - 31)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 23) | (tp << (64 - 23)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 52) | (tp << (64 - 52)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 35) | (tp << (64 - 35)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 48) | (tp << (64 - 48)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 9) | (tp << (64 - 9)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 25) | (tp << (64 - 25)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 44) | (tp << (64 - 44)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 42) | (tp << (64 - 42)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 19) | (tp << (64 - 19)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 46) | (tp << (64 - 46)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 47) | (tp << (64 - 47)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 44) | (tp << (64 - 44)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 31) | (tp << (64 - 31)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 41) | (tp << (64 - 41)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 42) | (tp << (64 - 42)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 53) | (tp << (64 - 53)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 4) | (tp << (64 - 4)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 51) | (tp << (64 - 51)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 56) | (tp << (64 - 56)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 34) | (tp << (64 - 34)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 16) | (tp << (64 - 16)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 30) | (tp << (64 - 30)), b14 -= b15 + k10 + t2, b15 -= k11 + 13
+    tp := b13 ^ b12, b13 := (tp >> 44) | (tp << (64 - 44)), b12 -= b13 + k8, b13 -= k9 + t1
+    tp := b11 ^ b10, b11 := (tp >> 47) | (tp << (64 - 47)), b10 -= b11 + k6, b11 -= k7
+    tp := b9 ^ b8, b9 := (tp >> 12) | (tp << (64 - 12)), b8 -= b9 + k4, b9 -= k5
+    tp := b7 ^ b6, b7 := (tp >> 31) | (tp << (64 - 31)), b6 -= b7 + k2, b7 -= k3
+    tp := b5 ^ b4, b5 := (tp >> 37) | (tp << (64 - 37)), b4 -= b5 + k0, b5 -= k1
+    tp := b3 ^ b2, b3 := (tp >> 9) | (tp << (64 - 9)), b2 -= b3 + k15, b3 -= k16
+    tp := b1 ^ b0, b1 := (tp >> 41) | (tp << (64 - 41)), b0 -= b1 + k13, b1 -= k14
+    tp := b7 ^ b12, b7 := (tp >> 25) | (tp << (64 - 25)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 16) | (tp << (64 - 16)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 28) | (tp << (64 - 28)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 47) | (tp << (64 - 47)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 41) | (tp << (64 - 41)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 48) | (tp << (64 - 48)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 20) | (tp << (64 - 20)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 5) | (tp << (64 - 5)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 17) | (tp << (64 - 17)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 59) | (tp << (64 - 59)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 41) | (tp << (64 - 41)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 34) | (tp << (64 - 34)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 13) | (tp << (64 - 13)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 51) | (tp << (64 - 51)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 4) | (tp << (64 - 4)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 33) | (tp << (64 - 33)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 52) | (tp << (64 - 52)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 23) | (tp << (64 - 23)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 18) | (tp << (64 - 18)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 49) | (tp << (64 - 49)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 55) | (tp << (64 - 55)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 10) | (tp << (64 - 10)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 19) | (tp << (64 - 19)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 38) | (tp << (64 - 38)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 37) | (tp << (64 - 37)), b14 -= b15 + k9 + t1, b15 -= k10 + 12
+    tp := b13 ^ b12, b13 := (tp >> 22) | (tp << (64 - 22)), b12 -= b13 + k7, b13 -= k8 + t0
+    tp := b11 ^ b10, b11 := (tp >> 17) | (tp << (64 - 17)), b10 -= b11 + k5, b11 -= k6
+    tp := b9 ^ b8, b9 := (tp >> 8) | (tp << (64 - 8)), b8 -= b9 + k3, b9 -= k4
+    tp := b7 ^ b6, b7 := (tp >> 47) | (tp << (64 - 47)), b6 -= b7 + k1, b7 -= k2
+    tp := b5 ^ b4, b5 := (tp >> 8) | (tp << (64 - 8)), b4 -= b5 + k16, b5 -= k0
+    tp := b3 ^ b2, b3 := (tp >> 13) | (tp << (64 - 13)), b2 -= b3 + k14, b3 -= k15
+    tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k12, b1 -= k13
+    tp := b7 ^ b12, b7 := (tp >> 20) | (tp << (64 - 20)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 37) | (tp << (64 - 37)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 31) | (tp << (64 - 31)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 23) | (tp << (64 - 23)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 52) | (tp << (64 - 52)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 35) | (tp << (64 - 35)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 48) | (tp << (64 - 48)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 9) | (tp << (64 - 9)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 25) | (tp << (64 - 25)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 44) | (tp << (64 - 44)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 42) | (tp << (64 - 42)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 19) | (tp << (64 - 19)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 46) | (tp << (64 - 46)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 47) | (tp << (64 - 47)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 44) | (tp << (64 - 44)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 31) | (tp << (64 - 31)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 41) | (tp << (64 - 41)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 42) | (tp << (64 - 42)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 53) | (tp << (64 - 53)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 4) | (tp << (64 - 4)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 51) | (tp << (64 - 51)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 56) | (tp << (64 - 56)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 34) | (tp << (64 - 34)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 16) | (tp << (64 - 16)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 30) | (tp << (64 - 30)), b14 -= b15 + k8 + t0, b15 -= k9 + 11
+    tp := b13 ^ b12, b13 := (tp >> 44) | (tp << (64 - 44)), b12 -= b13 + k6, b13 -= k7 + t2
+    tp := b11 ^ b10, b11 := (tp >> 47) | (tp << (64 - 47)), b10 -= b11 + k4, b11 -= k5
+    tp := b9 ^ b8, b9 := (tp >> 12) | (tp << (64 - 12)), b8 -= b9 + k2, b9 -= k3
+    tp := b7 ^ b6, b7 := (tp >> 31) | (tp << (64 - 31)), b6 -= b7 + k0, b7 -= k1
+    tp := b5 ^ b4, b5 := (tp >> 37) | (tp << (64 - 37)), b4 -= b5 + k15, b5 -= k16
+    tp := b3 ^ b2, b3 := (tp >> 9) | (tp << (64 - 9)), b2 -= b3 + k13, b3 -= k14
+    tp := b1 ^ b0, b1 := (tp >> 41) | (tp << (64 - 41)), b0 -= b1 + k11, b1 -= k12
+    tp := b7 ^ b12, b7 := (tp >> 25) | (tp << (64 - 25)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 16) | (tp << (64 - 16)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 28) | (tp << (64 - 28)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 47) | (tp << (64 - 47)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 41) | (tp << (64 - 41)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 48) | (tp << (64 - 48)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 20) | (tp << (64 - 20)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 5) | (tp << (64 - 5)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 17) | (tp << (64 - 17)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 59) | (tp << (64 - 59)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 41) | (tp << (64 - 41)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 34) | (tp << (64 - 34)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 13) | (tp << (64 - 13)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 51) | (tp << (64 - 51)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 4) | (tp << (64 - 4)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 33) | (tp << (64 - 33)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 52) | (tp << (64 - 52)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 23) | (tp << (64 - 23)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 18) | (tp << (64 - 18)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 49) | (tp << (64 - 49)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 55) | (tp << (64 - 55)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 10) | (tp << (64 - 10)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 19) | (tp << (64 - 19)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 38) | (tp << (64 - 38)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 37) | (tp << (64 - 37)), b14 -= b15 + k7 + t2, b15 -= k8 + 10
+    tp := b13 ^ b12, b13 := (tp >> 22) | (tp << (64 - 22)), b12 -= b13 + k5, b13 -= k6 + t1
+    tp := b11 ^ b10, b11 := (tp >> 17) | (tp << (64 - 17)), b10 -= b11 + k3, b11 -= k4
+    tp := b9 ^ b8, b9 := (tp >> 8) | (tp << (64 - 8)), b8 -= b9 + k1, b9 -= k2
+    tp := b7 ^ b6, b7 := (tp >> 47) | (tp << (64 - 47)), b6 -= b7 + k16, b7 -= k0
+    tp := b5 ^ b4, b5 := (tp >> 8) | (tp << (64 - 8)), b4 -= b5 + k14, b5 -= k15
+    tp := b3 ^ b2, b3 := (tp >> 13) | (tp << (64 - 13)), b2 -= b3 + k12, b3 -= k13
+    tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k10, b1 -= k11
+    tp := b7 ^ b12, b7 := (tp >> 20) | (tp << (64 - 20)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 37) | (tp << (64 - 37)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 31) | (tp << (64 - 31)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 23) | (tp << (64 - 23)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 52) | (tp << (64 - 52)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 35) | (tp << (64 - 35)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 48) | (tp << (64 - 48)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 9) | (tp << (64 - 9)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 25) | (tp << (64 - 25)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 44) | (tp << (64 - 44)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 42) | (tp << (64 - 42)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 19) | (tp << (64 - 19)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 46) | (tp << (64 - 46)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 47) | (tp << (64 - 47)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 44) | (tp << (64 - 44)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 31) | (tp << (64 - 31)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 41) | (tp << (64 - 41)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 42) | (tp << (64 - 42)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 53) | (tp << (64 - 53)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 4) | (tp << (64 - 4)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 51) | (tp << (64 - 51)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 56) | (tp << (64 - 56)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 34) | (tp << (64 - 34)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 16) | (tp << (64 - 16)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 30) | (tp << (64 - 30)), b14 -= b15 + k6 + t1, b15 -= k7 + 9
+    tp := b13 ^ b12, b13 := (tp >> 44) | (tp << (64 - 44)), b12 -= b13 + k4, b13 -= k5 + t0
+    tp := b11 ^ b10, b11 := (tp >> 47) | (tp << (64 - 47)), b10 -= b11 + k2, b11 -= k3
+    tp := b9 ^ b8, b9 := (tp >> 12) | (tp << (64 - 12)), b8 -= b9 + k0, b9 -= k1
+    tp := b7 ^ b6, b7 := (tp >> 31) | (tp << (64 - 31)), b6 -= b7 + k15, b7 -= k16
+    tp := b5 ^ b4, b5 := (tp >> 37) | (tp << (64 - 37)), b4 -= b5 + k13, b5 -= k14
+    tp := b3 ^ b2, b3 := (tp >> 9) | (tp << (64 - 9)), b2 -= b3 + k11, b3 -= k12
+    tp := b1 ^ b0, b1 := (tp >> 41) | (tp << (64 - 41)), b0 -= b1 + k9, b1 -= k10
+    tp := b7 ^ b12, b7 := (tp >> 25) | (tp << (64 - 25)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 16) | (tp << (64 - 16)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 28) | (tp << (64 - 28)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 47) | (tp << (64 - 47)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 41) | (tp << (64 - 41)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 48) | (tp << (64 - 48)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 20) | (tp << (64 - 20)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 5) | (tp << (64 - 5)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 17) | (tp << (64 - 17)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 59) | (tp << (64 - 59)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 41) | (tp << (64 - 41)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 34) | (tp << (64 - 34)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 13) | (tp << (64 - 13)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 51) | (tp << (64 - 51)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 4) | (tp << (64 - 4)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 33) | (tp << (64 - 33)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 52) | (tp << (64 - 52)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 23) | (tp << (64 - 23)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 18) | (tp << (64 - 18)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 49) | (tp << (64 - 49)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 55) | (tp << (64 - 55)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 10) | (tp << (64 - 10)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 19) | (tp << (64 - 19)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 38) | (tp << (64 - 38)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 37) | (tp << (64 - 37)), b14 -= b15 + k5 + t0, b15 -= k6 + 8
+    tp := b13 ^ b12, b13 := (tp >> 22) | (tp << (64 - 22)), b12 -= b13 + k3, b13 -= k4 + t2
+    tp := b11 ^ b10, b11 := (tp >> 17) | (tp << (64 - 17)), b10 -= b11 + k1, b11 -= k2
+    tp := b9 ^ b8, b9 := (tp >> 8) | (tp << (64 - 8)), b8 -= b9 + k16, b9 -= k0
+    tp := b7 ^ b6, b7 := (tp >> 47) | (tp << (64 - 47)), b6 -= b7 + k14, b7 -= k15
+    tp := b5 ^ b4, b5 := (tp >> 8) | (tp << (64 - 8)), b4 -= b5 + k12, b5 -= k13
+    tp := b3 ^ b2, b3 := (tp >> 13) | (tp << (64 - 13)), b2 -= b3 + k10, b3 -= k11
+    tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k8, b1 -= k9
+    tp := b7 ^ b12, b7 := (tp >> 20) | (tp << (64 - 20)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 37) | (tp << (64 - 37)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 31) | (tp << (64 - 31)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 23) | (tp << (64 - 23)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 52) | (tp << (64 - 52)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 35) | (tp << (64 - 35)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 48) | (tp << (64 - 48)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 9) | (tp << (64 - 9)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 25) | (tp << (64 - 25)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 44) | (tp << (64 - 44)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 42) | (tp << (64 - 42)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 19) | (tp << (64 - 19)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 46) | (tp << (64 - 46)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 47) | (tp << (64 - 47)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 44) | (tp << (64 - 44)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 31) | (tp << (64 - 31)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 41) | (tp << (64 - 41)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 42) | (tp << (64 - 42)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 53) | (tp << (64 - 53)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 4) | (tp << (64 - 4)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 51) | (tp << (64 - 51)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 56) | (tp << (64 - 56)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 34) | (tp << (64 - 34)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 16) | (tp << (64 - 16)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 30) | (tp << (64 - 30)), b14 -= b15 + k4 + t2, b15 -= k5 + 7
+    tp := b13 ^ b12, b13 := (tp >> 44) | (tp << (64 - 44)), b12 -= b13 + k2, b13 -= k3 + t1
+    tp := b11 ^ b10, b11 := (tp >> 47) | (tp << (64 - 47)), b10 -= b11 + k0, b11 -= k1
+    tp := b9 ^ b8, b9 := (tp >> 12) | (tp << (64 - 12)), b8 -= b9 + k15, b9 -= k16
+    tp := b7 ^ b6, b7 := (tp >> 31) | (tp << (64 - 31)), b6 -= b7 + k13, b7 -= k14
+    tp := b5 ^ b4, b5 := (tp >> 37) | (tp << (64 - 37)), b4 -= b5 + k11, b5 -= k12
+    tp := b3 ^ b2, b3 := (tp >> 9) | (tp << (64 - 9)), b2 -= b3 + k9, b3 -= k10
+    tp := b1 ^ b0, b1 := (tp >> 41) | (tp << (64 - 41)), b0 -= b1 + k7, b1 -= k8
+    tp := b7 ^ b12, b7 := (tp >> 25) | (tp << (64 - 25)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 16) | (tp << (64 - 16)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 28) | (tp << (64 - 28)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 47) | (tp << (64 - 47)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 41) | (tp << (64 - 41)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 48) | (tp << (64 - 48)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 20) | (tp << (64 - 20)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 5) | (tp << (64 - 5)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 17) | (tp << (64 - 17)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 59) | (tp << (64 - 59)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 41) | (tp << (64 - 41)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 34) | (tp << (64 - 34)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 13) | (tp << (64 - 13)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 51) | (tp << (64 - 51)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 4) | (tp << (64 - 4)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 33) | (tp << (64 - 33)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 52) | (tp << (64 - 52)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 23) | (tp << (64 - 23)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 18) | (tp << (64 - 18)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 49) | (tp << (64 - 49)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 55) | (tp << (64 - 55)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 10) | (tp << (64 - 10)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 19) | (tp << (64 - 19)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 38) | (tp << (64 - 38)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 37) | (tp << (64 - 37)), b14 -= b15 + k3 + t1, b15 -= k4 + 6
+    tp := b13 ^ b12, b13 := (tp >> 22) | (tp << (64 - 22)), b12 -= b13 + k1, b13 -= k2 + t0
+    tp := b11 ^ b10, b11 := (tp >> 17) | (tp << (64 - 17)), b10 -= b11 + k16, b11 -= k0
+    tp := b9 ^ b8, b9 := (tp >> 8) | (tp << (64 - 8)), b8 -= b9 + k14, b9 -= k15
+    tp := b7 ^ b6, b7 := (tp >> 47) | (tp << (64 - 47)), b6 -= b7 + k12, b7 -= k13
+    tp := b5 ^ b4, b5 := (tp >> 8) | (tp << (64 - 8)), b4 -= b5 + k10, b5 -= k11
+    tp := b3 ^ b2, b3 := (tp >> 13) | (tp << (64 - 13)), b2 -= b3 + k8, b3 -= k9
+    tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k6, b1 -= k7
+    tp := b7 ^ b12, b7 := (tp >> 20) | (tp << (64 - 20)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 37) | (tp << (64 - 37)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 31) | (tp << (64 - 31)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 23) | (tp << (64 - 23)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 52) | (tp << (64 - 52)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 35) | (tp << (64 - 35)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 48) | (tp << (64 - 48)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 9) | (tp << (64 - 9)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 25) | (tp << (64 - 25)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 44) | (tp << (64 - 44)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 42) | (tp << (64 - 42)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 19) | (tp << (64 - 19)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 46) | (tp << (64 - 46)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 47) | (tp << (64 - 47)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 44) | (tp << (64 - 44)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 31) | (tp << (64 - 31)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 41) | (tp << (64 - 41)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 42) | (tp << (64 - 42)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 53) | (tp << (64 - 53)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 4) | (tp << (64 - 4)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 51) | (tp << (64 - 51)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 56) | (tp << (64 - 56)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 34) | (tp << (64 - 34)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 16) | (tp << (64 - 16)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 30) | (tp << (64 - 30)), b14 -= b15 + k2 + t0, b15 -= k3 + 5
+    tp := b13 ^ b12, b13 := (tp >> 44) | (tp << (64 - 44)), b12 -= b13 + k0, b13 -= k1 + t2
+    tp := b11 ^ b10, b11 := (tp >> 47) | (tp << (64 - 47)), b10 -= b11 + k15, b11 -= k16
+    tp := b9 ^ b8, b9 := (tp >> 12) | (tp << (64 - 12)), b8 -= b9 + k13, b9 -= k14
+    tp := b7 ^ b6, b7 := (tp >> 31) | (tp << (64 - 31)), b6 -= b7 + k11, b7 -= k12
+    tp := b5 ^ b4, b5 := (tp >> 37) | (tp << (64 - 37)), b4 -= b5 + k9, b5 -= k10
+    tp := b3 ^ b2, b3 := (tp >> 9) | (tp << (64 - 9)), b2 -= b3 + k7, b3 -= k8
+    tp := b1 ^ b0, b1 := (tp >> 41) | (tp << (64 - 41)), b0 -= b1 + k5, b1 -= k6
+    tp := b7 ^ b12, b7 := (tp >> 25) | (tp << (64 - 25)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 16) | (tp << (64 - 16)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 28) | (tp << (64 - 28)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 47) | (tp << (64 - 47)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 41) | (tp << (64 - 41)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 48) | (tp << (64 - 48)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 20) | (tp << (64 - 20)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 5) | (tp << (64 - 5)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 17) | (tp << (64 - 17)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 59) | (tp << (64 - 59)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 41) | (tp << (64 - 41)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 34) | (tp << (64 - 34)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 13) | (tp << (64 - 13)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 51) | (tp << (64 - 51)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 4) | (tp << (64 - 4)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 33) | (tp << (64 - 33)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 52) | (tp << (64 - 52)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 23) | (tp << (64 - 23)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 18) | (tp << (64 - 18)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 49) | (tp << (64 - 49)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 55) | (tp << (64 - 55)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 10) | (tp << (64 - 10)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 19) | (tp << (64 - 19)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 38) | (tp << (64 - 38)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 37) | (tp << (64 - 37)), b14 -= b15 + k1 + t2, b15 -= k2 + 4
+    tp := b13 ^ b12, b13 := (tp >> 22) | (tp << (64 - 22)), b12 -= b13 + k16, b13 -= k0 + t1
+    tp := b11 ^ b10, b11 := (tp >> 17) | (tp << (64 - 17)), b10 -= b11 + k14, b11 -= k15
+    tp := b9 ^ b8, b9 := (tp >> 8) | (tp << (64 - 8)), b8 -= b9 + k12, b9 -= k13
+    tp := b7 ^ b6, b7 := (tp >> 47) | (tp << (64 - 47)), b6 -= b7 + k10, b7 -= k11
+    tp := b5 ^ b4, b5 := (tp >> 8) | (tp << (64 - 8)), b4 -= b5 + k8, b5 -= k9
+    tp := b3 ^ b2, b3 := (tp >> 13) | (tp << (64 - 13)), b2 -= b3 + k6, b3 -= k7
+    tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k4, b1 -= k5
+    tp := b7 ^ b12, b7 := (tp >> 20) | (tp << (64 - 20)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 37) | (tp << (64 - 37)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 31) | (tp << (64 - 31)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 23) | (tp << (64 - 23)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 52) | (tp << (64 - 52)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 35) | (tp << (64 - 35)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 48) | (tp << (64 - 48)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 9) | (tp << (64 - 9)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 25) | (tp << (64 - 25)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 44) | (tp << (64 - 44)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 42) | (tp << (64 - 42)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 19) | (tp << (64 - 19)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 46) | (tp << (64 - 46)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 47) | (tp << (64 - 47)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 44) | (tp << (64 - 44)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 31) | (tp << (64 - 31)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 41) | (tp << (64 - 41)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 42) | (tp << (64 - 42)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 53) | (tp << (64 - 53)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 4) | (tp << (64 - 4)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 51) | (tp << (64 - 51)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 56) | (tp << (64 - 56)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 34) | (tp << (64 - 34)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 16) | (tp << (64 - 16)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 30) | (tp << (64 - 30)), b14 -= b15 + k0 + t1, b15 -= k1 + 3
+    tp := b13 ^ b12, b13 := (tp >> 44) | (tp << (64 - 44)), b12 -= b13 + k15, b13 -= k16 + t0
+    tp := b11 ^ b10, b11 := (tp >> 47) | (tp << (64 - 47)), b10 -= b11 + k13, b11 -= k14
+    tp := b9 ^ b8, b9 := (tp >> 12) | (tp << (64 - 12)), b8 -= b9 + k11, b9 -= k12
+    tp := b7 ^ b6, b7 := (tp >> 31) | (tp << (64 - 31)), b6 -= b7 + k9, b7 -= k10
+    tp := b5 ^ b4, b5 := (tp >> 37) | (tp << (64 - 37)), b4 -= b5 + k7, b5 -= k8
+    tp := b3 ^ b2, b3 := (tp >> 9) | (tp << (64 - 9)), b2 -= b3 + k5, b3 -= k6
+    tp := b1 ^ b0, b1 := (tp >> 41) | (tp << (64 - 41)), b0 -= b1 + k3, b1 -= k4
+    tp := b7 ^ b12, b7 := (tp >> 25) | (tp << (64 - 25)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 16) | (tp << (64 - 16)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 28) | (tp << (64 - 28)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 47) | (tp << (64 - 47)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 41) | (tp << (64 - 41)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 48) | (tp << (64 - 48)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 20) | (tp << (64 - 20)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 5) | (tp << (64 - 5)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 17) | (tp << (64 - 17)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 59) | (tp << (64 - 59)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 41) | (tp << (64 - 41)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 34) | (tp << (64 - 34)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 13) | (tp << (64 - 13)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 51) | (tp << (64 - 51)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 4) | (tp << (64 - 4)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 33) | (tp << (64 - 33)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 52) | (tp << (64 - 52)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 23) | (tp << (64 - 23)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 18) | (tp << (64 - 18)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 49) | (tp << (64 - 49)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 55) | (tp << (64 - 55)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 10) | (tp << (64 - 10)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 19) | (tp << (64 - 19)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 38) | (tp << (64 - 38)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 37) | (tp << (64 - 37)), b14 -= b15 + k16 + t0, b15 -= k0 + 2
+    tp := b13 ^ b12, b13 := (tp >> 22) | (tp << (64 - 22)), b12 -= b13 + k14, b13 -= k15 + t2
+    tp := b11 ^ b10, b11 := (tp >> 17) | (tp << (64 - 17)), b10 -= b11 + k12, b11 -= k13
+    tp := b9 ^ b8, b9 := (tp >> 8) | (tp << (64 - 8)), b8 -= b9 + k10, b9 -= k11
+    tp := b7 ^ b6, b7 := (tp >> 47) | (tp << (64 - 47)), b6 -= b7 + k8, b7 -= k9
+    tp := b5 ^ b4, b5 := (tp >> 8) | (tp << (64 - 8)), b4 -= b5 + k6, b5 -= k7
+    tp := b3 ^ b2, b3 := (tp >> 13) | (tp << (64 - 13)), b2 -= b3 + k4, b3 -= k5
+    tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k2, b1 -= k3
+    tp := b7 ^ b12, b7 := (tp >> 20) | (tp << (64 - 20)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 37) | (tp << (64 - 37)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 31) | (tp << (64 - 31)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 23) | (tp << (64 - 23)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 52) | (tp << (64 - 52)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 35) | (tp << (64 - 35)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 48) | (tp << (64 - 48)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 9) | (tp << (64 - 9)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 25) | (tp << (64 - 25)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 44) | (tp << (64 - 44)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 42) | (tp << (64 - 42)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 19) | (tp << (64 - 19)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 46) | (tp << (64 - 46)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 47) | (tp << (64 - 47)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 44) | (tp << (64 - 44)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 31) | (tp << (64 - 31)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 41) | (tp << (64 - 41)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 42) | (tp << (64 - 42)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 53) | (tp << (64 - 53)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 4) | (tp << (64 - 4)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 51) | (tp << (64 - 51)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 56) | (tp << (64 - 56)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 34) | (tp << (64 - 34)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 16) | (tp << (64 - 16)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 30) | (tp << (64 - 30)), b14 -= b15 + k15 + t2, b15 -= k16 + 1
+    tp := b13 ^ b12, b13 := (tp >> 44) | (tp << (64 - 44)), b12 -= b13 + k13, b13 -= k14 + t1
+    tp := b11 ^ b10, b11 := (tp >> 47) | (tp << (64 - 47)), b10 -= b11 + k11, b11 -= k12
+    tp := b9 ^ b8, b9 := (tp >> 12) | (tp << (64 - 12)), b8 -= b9 + k9, b9 -= k10
+    tp := b7 ^ b6, b7 := (tp >> 31) | (tp << (64 - 31)), b6 -= b7 + k7, b7 -= k8
+    tp := b5 ^ b4, b5 := (tp >> 37) | (tp << (64 - 37)), b4 -= b5 + k5, b5 -= k6
+    tp := b3 ^ b2, b3 := (tp >> 9) | (tp << (64 - 9)), b2 -= b3 + k3, b3 -= k4
+    tp := b1 ^ b0, b1 := (tp >> 41) | (tp << (64 - 41)), b0 -= b1 + k1, b1 -= k2
+    tp := b7 ^ b12, b7 := (tp >> 25) | (tp << (64 - 25)), b12 -= b7
+    tp := b3 ^ b10, b3 := (tp >> 16) | (tp << (64 - 16)), b10 -= b3
+    tp := b5 ^ b8, b5 := (tp >> 28) | (tp << (64 - 28)), b8 -= b5
+    tp := b1 ^ b14, b1 := (tp >> 47) | (tp << (64 - 47)), b14 -= b1
+    tp := b9 ^ b4, b9 := (tp >> 41) | (tp << (64 - 41)), b4 -= b9
+    tp := b13 ^ b6, b13 := (tp >> 48) | (tp << (64 - 48)), b6 -= b13
+    tp := b11 ^ b2, b11 := (tp >> 20) | (tp << (64 - 20)), b2 -= b11
+    tp := b15 ^ b0, b15 := (tp >> 5) | (tp << (64 - 5)), b0 -= b15
+    tp := b9 ^ b10, b9 := (tp >> 17) | (tp << (64 - 17)), b10 -= b9
+    tp := b11 ^ b8, b11 := (tp >> 59) | (tp << (64 - 59)), b8 -= b11
+    tp := b13 ^ b14, b13 := (tp >> 41) | (tp << (64 - 41)), b14 -= b13
+    tp := b15 ^ b12, b15 := (tp >> 34) | (tp << (64 - 34)), b12 -= b15
+    tp := b1 ^ b6, b1 := (tp >> 13) | (tp << (64 - 13)), b6 -= b1
+    tp := b3 ^ b4, b3 := (tp >> 51) | (tp << (64 - 51)), b4 -= b3
+    tp := b5 ^ b2, b5 := (tp >> 4) | (tp << (64 - 4)), b2 -= b5
+    tp := b7 ^ b0, b7 := (tp >> 33) | (tp << (64 - 33)), b0 -= b7
+    tp := b1 ^ b8, b1 := (tp >> 52) | (tp << (64 - 52)), b8 -= b1
+    tp := b5 ^ b14, b5 := (tp >> 23) | (tp << (64 - 23)), b14 -= b5
+    tp := b3 ^ b12, b3 := (tp >> 18) | (tp << (64 - 18)), b12 -= b3
+    tp := b7 ^ b10, b7 := (tp >> 49) | (tp << (64 - 49)), b10 -= b7
+    tp := b15 ^ b4, b15 := (tp >> 55) | (tp << (64 - 55)), b4 -= b15
+    tp := b11 ^ b6, b11 := (tp >> 10) | (tp << (64 - 10)), b6 -= b11
+    tp := b13 ^ b2, b13 := (tp >> 19) | (tp << (64 - 19)), b2 -= b13
+    tp := b9 ^ b0, b9 := (tp >> 38) | (tp << (64 - 38)), b0 -= b9
+    tp := b15 ^ b14, b15 := (tp >> 37) | (tp << (64 - 37)), b14 -= b15 + k14 + t1, b15 -= k15
+    tp := b13 ^ b12, b13 := (tp >> 22) | (tp << (64 - 22)), b12 -= b13 + k12, b13 -= k13 + t0
+    tp := b11 ^ b10, b11 := (tp >> 17) | (tp << (64 - 17)), b10 -= b11 + k10, b11 -= k11
+    tp := b9 ^ b8, b9 := (tp >> 8) | (tp << (64 - 8)), b8 -= b9 + k8, b9 -= k9
+    tp := b7 ^ b6, b7 := (tp >> 47) | (tp << (64 - 47)), b6 -= b7 + k6, b7 -= k7
+    tp := b5 ^ b4, b5 := (tp >> 8) | (tp << (64 - 8)), b4 -= b5 + k4, b5 -= k5
+    tp := b3 ^ b2, b3 := (tp >> 13) | (tp << (64 - 13)), b2 -= b3 + k2, b3 -= k3
+    tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k0, b1 -= k1
 
+    output:=[]
     output[15] := b15
     output[14] := b14
     output[13] := b13
