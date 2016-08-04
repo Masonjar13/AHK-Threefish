@@ -1,5 +1,4 @@
-; ThreefishKey class (written by Capn Odin)
-
+; ThreefishKey class
 class ThreefishKey_t
 {
 	stateSize := 0
@@ -42,15 +41,15 @@ class ThreefishKey_t
 
 threefishEncrypt256(keyC,data){
 
-    b0 := data[0], b1 := data[1]
-    b2 := data[2], b3 := data[3]
+    b0 := data[1], b1 := data[2]
+    b2 := data[3], b3 := data[4]
 
-    k0 := keyC.key[0], k1 := keyC.key[1]
-    k2 := keyC.key[2], k3 := keyC.key[3]
-    k4 := keyC.key[4]
+    k0 := keyC.key[1], k1 := keyC.key[2]
+    k2 := keyC.key[3], k3 := keyC.key[4]
+    k4 := keyC.key[5]
 
-    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
-    t2 := keyC.tweak[2]
+    t0 := keyC.tweak[1], t1 := keyC.tweak[2]
+    t2 := keyC.tweak[3]
 
     b1 += k1 + t0, b0 += b1 + k0, b1 := ((b1 << 14) | (b1 >> (64 - 14))) ^ b0
     b3 += k3, b2 += b3 + k2 + t1, b3 := ((b3 << 16) | (b3 >> (64 - 16))) ^ b2
@@ -206,25 +205,25 @@ threefishEncrypt256(keyC,data){
     b2 += b1, b1 := ((b1 << 32) | (b1 >> (64 - 32))) ^ b2
 
     output:=[]
-    output[0] := b0 + k3
-    output[1] := b1 + k4 + t0
-    output[2] := b2 + k0 + t1
-    output[3] := b3 + k1 + 18
+    output[1] := b0 + k3
+    output[2] := b1 + k4 + t0
+    output[3] := b2 + k0 + t1
+    output[4] := b3 + k1 + 18
     
     return output
 }
 
 threefishDecrypt256(keyC,data){
 
-    b0 := data[0], b1 := data[1]
-    b2 := data[2], b3 := data[3]
+    b0 := data[1], b1 := data[2]
+    b2 := data[3], b3 := data[4]
 
-    k0 := keyC.key[0], k1 := keyC.key[1]
-    k2 := keyC.key[2], k3 := keyC.key[3]
-    k4 := keyC.key[4]
+    k0 := keyC.key[1], k1 := keyC.key[2]
+    k2 := keyC.key[3], k3 := keyC.key[4]
+    k4 := keyC.key[5]
 
-    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
-    t2 := keyC.tweak[2]
+    t0 := keyC.tweak[1], t1 := keyC.tweak[2]
+    t2 := keyC.tweak[3]
 
     b0 -= k3
     b1 -= k4 + t0
@@ -384,29 +383,29 @@ threefishDecrypt256(keyC,data){
     tp := b3 ^ b2, b3 := (tp >> 16) | (tp << (64 - 16)), b2 -= b3 + k2 + t1, b3 -= k3
 
     output:=[]
-    output[0] := b0
-    output[1] := b1
-    output[2] := b2
-    output[3] := b3
+    output[1] := b0
+    output[2] := b1
+    output[3] := b2
+    output[4] := b3
 
     return output
 }
   
 threefishEncrypt512(keyC,data){
 
-    b0 := data[0], b1 := data[1]
-    b2 := data[2], b3 := data[3]
-    b4 := data[4], b5 := data[5]
-    b6 := data[6], b7 := data[7]
+    b0 := data[1], b1 := data[2]
+    b2 := data[3], b3 := data[4]
+    b4 := data[5], b5 := data[6]
+    b6 := data[7], b7 := data[8]
 
-    k0 := keyC.key[0], k1 := keyC.key[1]
-    k2 := keyC.key[2], k3 := keyC.key[3]
-    k4 := keyC.key[4], k5 := keyC.key[5]
-    k6 := keyC.key[6], k7 := keyC.key[7]
-    k8 := keyC.key[8]
+    k0 := keyC.key[1], k1 := keyC.key[2]
+    k2 := keyC.key[3], k3 := keyC.key[4]
+    k4 := keyC.key[5], k5 := keyC.key[6]
+    k6 := keyC.key[7], k7 := keyC.key[8]
+    k8 := keyC.key[9]
 
-    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
-    t2 := keyC.tweak[2]
+    t0 := keyC.tweak[1], t1 := keyC.tweak[2]
+    t2 := keyC.tweak[3]
 
     b1 += k1, b0 += b1 + k0, b1 := ((b1 << 46) | (b1 >> (64 - 46))) ^ b0
     b3 += k3, b2 += b3 + k2, b3 := ((b3 << 36) | (b3 >> (64 - 36))) ^ b2
@@ -698,31 +697,31 @@ threefishEncrypt512(keyC,data){
     b4 += b3, b3 := ((b3 << 22) | (b3 >> (64 - 22))) ^ b4
 
     output:=[]
-    output[0] := b0 + k0
-    output[1] := b1 + k1
-    output[2] := b2 + k2
-    output[3] := b3 + k3
-    output[4] := b4 + k4
-    output[5] := b5 + k5 + t0
-    output[6] := b6 + k6 + t1
-    output[7] := b7 + k7 + 18
+    output[1] := b0 + k0
+    output[2] := b1 + k1
+    output[3] := b2 + k2
+    output[4] := b3 + k3
+    output[5] := b4 + k4
+    output[6] := b5 + k5 + t0
+    output[7] := b6 + k6 + t1
+    output[8] := b7 + k7 + 18
 
     return output
 }
 
 threefishDecrypt512(keyC,data){
 
-    b0 := data[0], b1 := data[1]
-    b2 := data[2], b3 := data[3]
-    b4 := data[4], b5 := data[5]
-    b6 := data[6], b7 := data[7]
-    k0 := keyC.key[0], k1 := keyC.key[1]
-    k2 := keyC.key[2], k3 := keyC.key[3]
-    k4 := keyC.key[4], k5 := keyC.key[5]
-    k6 := keyC.key[6], k7 := keyC.key[7]
-    k8 := keyC.key[8]
-    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
-    t2 := keyC.tweak[2]
+    b0 := data[1], b1 := data[2]
+    b2 := data[3], b3 := data[4]
+    b4 := data[5], b5 := data[6]
+    b6 := data[7], b7 := data[8]
+    k0 := keyC.key[1], k1 := keyC.key[2]
+    k2 := keyC.key[3], k3 := keyC.key[4]
+    k4 := keyC.key[5], k5 := keyC.key[6]
+    k6 := keyC.key[7], k7 := keyC.key[8]
+    k8 := keyC.key[9]
+    t0 := keyC.tweak[1], t1 := keyC.tweak[2]
+    t2 := keyC.tweak[3]
 
     b0 -= k0
     b1 -= k1
@@ -1022,41 +1021,41 @@ threefishDecrypt512(keyC,data){
     tp := b1 ^ b0, b1 := (tp >> 46) | (tp << (64 - 46)), b0 -= b1 + k0, b1 -= k1
 
     output:=[]
-    output[0] := b0
-    output[1] := b1
-    output[2] := b2
-    output[3] := b3
-    output[7] := b7
-    output[6] := b6
-    output[5] := b5
-    output[4] := b4
+    output[1] := b0
+    output[2] := b1
+    output[3] := b2
+    output[4] := b3
+    output[8] := b7
+    output[7] := b6
+    output[6] := b5
+    output[5] := b4
 
     return output
 }
 
 threefishEncrypt1024(keyC,data){
 
-    b0 := data[0], b1 := data[1]
-    b2 := data[2], b3 := data[3]
-    b4 := data[4], b5 := data[5]
-    b6 := data[6], b7 := data[7]
-    b8 := data[8], b9 := data[9]
-    b10 := data[10], b11 := data[11]
-    b12 := data[12], b13 := data[13]
-    b14 := data[14], b15 := data[15]
+    b0 := data[1], b1 := data[2]
+    b2 := data[3], b3 := data[4]
+    b4 := data[5], b5 := data[6]
+    b6 := data[7], b7 := data[8]
+    b8 := data[9], b9 := data[10]
+    b10 := data[11], b11 := data[12]
+    b12 := data[13], b13 := data[14]
+    b14 := data[15], b15 := data[16]
 
-    k0 := keyC.key[0], k1 := keyC.key[1]
-    k2 := keyC.key[2], k3 := keyC.key[3]
-    k4 := keyC.key[4], k5 := keyC.key[5]
-    k6 := keyC.key[6], k7 := keyC.key[7]
-    k8 := keyC.key[8], k9 := keyC.key[9]
-    k10 := keyC.key[10], k11 := keyC.key[11]
-    k12 := keyC.key[12], k13 := keyC.key[13]
-    k14 := keyC.key[14], k15 := keyC.key[15]
-    k16 := keyC.key[16]
+    k0 := keyC.key[1], k1 := keyC.key[2]
+    k2 := keyC.key[3], k3 := keyC.key[4]
+    k4 := keyC.key[5], k5 := keyC.key[6]
+    k6 := keyC.key[7], k7 := keyC.key[8]
+    k8 := keyC.key[9], k9 := keyC.key[10]
+    k10 := keyC.key[11], k11 := keyC.key[12]
+    k12 := keyC.key[13], k13 := keyC.key[14]
+    k14 := keyC.key[15], k15 := keyC.key[16]
+    k16 := keyC.key[17]
 
-    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
-    t2 := keyC.tweak[2]
+    t0 := keyC.tweak[1], t1 := keyC.tweak[2]
+    t2 := keyC.tweak[3]
 
     b1 += k1, b0 += b1 + k0, b1 := ((b1 << 24) | (b1 >> (64 - 24))) ^ b0
     b3 += k3, b2 += b3 + k2, b3 := ((b3 << 13) | (b3 >> (64 - 13))) ^ b2
@@ -1700,49 +1699,49 @@ threefishEncrypt1024(keyC,data){
     b12 += b7, b7 := ((b7 << 20) | (b7 >> (64 - 20))) ^ b12
 
     output:=[]
-    output[0] := b0 + k3
-    output[1] := b1 + k4
-    output[2] := b2 + k5
-    output[3] := b3 + k6
-    output[4] := b4 + k7
-    output[5] := b5 + k8
-    output[6] := b6 + k9
-    output[7] := b7 + k10
-    output[8] := b8 + k11
-    output[9] := b9 + k12
-    output[10] := b10 + k13
-    output[11] := b11 + k14
-    output[12] := b12 + k15
-    output[13] := b13 + k16 + t2
-    output[14] := b14 + k0 + t0
-    output[15] := b15 + k1 + 20
+    output[1] := b0 + k3
+    output[2] := b1 + k4
+    output[3] := b2 + k5
+    output[4] := b3 + k6
+    output[5] := b4 + k7
+    output[6] := b5 + k8
+    output[7] := b6 + k9
+    output[8] := b7 + k10
+    output[9] := b8 + k11
+    output[10] := b9 + k12
+    output[11] := b10 + k13
+    output[12] := b11 + k14
+    output[13] := b12 + k15
+    output[14] := b13 + k16 + t2
+    output[15] := b14 + k0 + t0
+    output[16] := b15 + k1 + 20
 
     return output
 }
 
 threefishDecryption1024(keyC,data){
 
-    b0 := data[0], b1 := data[1]
-    b2 := data[2], b3 := data[3]
-    b4 := data[4], b5 := data[5]
-    b6 := data[6], b7 := data[7]
-    b8 := data[8], b9 := data[9]
-    b10 := data[10], b11 := data[11]
-    b12 := data[12], b13 := data[13]
-    b14 := data[14], b15 := data[15]    
+    b0 := data[1], b1 := data[2]
+    b2 := data[3], b3 := data[4]
+    b4 := data[5], b5 := data[6]
+    b6 := data[7], b7 := data[8]
+    b8 := data[9], b9 := data[10]
+    b10 := data[11], b11 := data[12]
+    b12 := data[13], b13 := data[14]
+    b14 := data[15], b15 := data[16]    
 
-    k0 := keyC.key[0], k1 := keyC.key[1]
-    k2 := keyC.key[2], k3 := keyC.key[3]
-    k4 := keyC.key[4], k5 := keyC.key[5]
-    k6 := keyC.key[6], k7 := keyC.key[7]
-    k8 := keyC.key[8], k9 := keyC.key[9]
-    k10 := keyC.key[10], k11 := keyC.key[11]
-    k12 := keyC.key[12], k13 := keyC.key[13]
-    k14 := keyC.key[14], k15 := keyC.key[15]
-    k16 := keyC.key[16]
+    k0 := keyC.key[1], k1 := keyC.key[2]
+    k2 := keyC.key[3], k3 := keyC.key[4]
+    k4 := keyC.key[5], k5 := keyC.key[6]
+    k6 := keyC.key[7], k7 := keyC.key[8]
+    k8 := keyC.key[9], k9 := keyC.key[10]
+    k10 := keyC.key[11], k11 := keyC.key[12]
+    k12 := keyC.key[13], k13 := keyC.key[14]
+    k14 := keyC.key[15], k15 := keyC.key[16]
+    k16 := keyC.key[17]
 
-    t0 := keyC.tweak[0], t1 := keyC.tweak[1]
-    t2 := keyC.tweak[2]
+    t0 := keyC.tweak[1], t1 := keyC.tweak[2]
+    t2 := keyC.tweak[3]
 
     b0 -= k3
     b1 -= k4
@@ -2402,22 +2401,22 @@ threefishDecryption1024(keyC,data){
     tp := b1 ^ b0, b1 := (tp >> 24) | (tp << (64 - 24)), b0 -= b1 + k0, b1 -= k1
 
     output:=[]
-    output[15] := b15
-    output[14] := b14
-    output[13] := b13
-    output[12] := b12
-    output[11] := b11
-    output[10] := b10
-    output[9] := b9
-    output[8] := b8
-    output[7] := b7
-    output[6] := b6
-    output[5] := b5
-    output[4] := b4
-    output[3] := b3
-    output[2] := b2
-    output[1] := b1
-    output[0] := b0
+    output[16] := b15
+    output[15] := b14
+    output[14] := b13
+    output[13] := b12
+    output[12] := b11
+    output[11] := b10
+    output[10] := b9
+    output[9] := b8
+    output[8] := b7
+    output[7] := b6
+    output[6] := b5
+    output[5] := b4
+    output[4] := b3
+    output[3] := b2
+    output[2] := b1
+    output[1] := b0
 
     return output
 }
